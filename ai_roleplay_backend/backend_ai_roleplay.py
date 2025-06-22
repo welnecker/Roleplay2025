@@ -146,7 +146,90 @@ def obter_intro(nome: str = Query("Janio")):
         }
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+    
+    # <- FORA de qualquer função
+class ChatRequest(BaseModel):
+    user_input: str
+    score: int
+    modo: str
+    modelo: str
+
+@app.get("/intro/")
+def obter_intro(nome: str = Query("Janio")):
+    try:
+        nome_usuario = nome
+        system_prompt_base = gerar_prompt_base(nome_usuario)
+        linhas = sheet.get_all_values()[1:]
+        registros = sorted(
+            [(dateparser.parse(l[0]), l[1], l[2]) for l in linhas if l[0] and l[1] and l[2]],
+            key=lambda x: x[0], reverse=True
+        )
+        if not registros:
+            return JSONResponse(content={
+                "resumo": "No capítulo anterior... Nada aconteceu ainda.",
+                "response": "",
+                "state": states[0],
+                "new_score": 0,
+                "tokens": 0
+            })
+        bloco_atual = [registros[0]]
+        for i in range(1, len(registros)):
+            if (bloco_atual[-1][0] - registros[i][0]).total_seconds() <= 600:
+                bloco_atual.append(registros[i])
+            else:
+                break
+        bloco_atual = list(reversed(bloco_atual))
+        horario_referencia = bloco_atual[0][0].strftime("%d/%m/%Y às %H:%M")
+        dialogo = "\n".join(
+            [f"{nome_usuario}: {r[2]}" if r[1].lower() == "usuário" else f"Jennifer: {r[2]}" for r in bloco_atual]
+        )
+        prompt_intro = (
+            "Gere uma sinopse como se fosse uma novela popular, com linguagem simples, leve e natural. "
+            "Comece com 'No capítulo anterior...' e resuma sem prever o futuro. "
+            f"A conversa aconteceu em {horario_referencia}."
+        )
+
+        resumo = call_ai([
+            {"role": "system", "content": prompt_intro},
+            {"role": "user", "content": dialogo}
+        ], modelo="gpt", temperature=0.6, max_tokens=500)
+
+        usage = len(resumo.split())
+        plan_sinopse = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow").worksheet("sinopse")
+        plan_sinopse.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), resumo, usage])
+
+        return {
+            "resumo": resumo,
+            "response": "",
+            "state": states[0],
+            "new_score": 0,
+            "tokens": usage
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/chat/")
+def chat_endpoint(payload: ChatRequest):
+    try:
+        resposta_ia = call_ai(
+            [
+                {"role": "user", "content": payload.user_input}
+            ],
+            modelo=payload.modelo,
+            temperature=0.85,
+            max_tokens=600
+        )
+
+        return {
+            "response": resposta_ia,
+            "new_score": payload.score,
+            "state": states[0],
+            "modo": payload.modo
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend_ai_roleplay:app", host="0.0.0.0", port=8000, reload=True)
+
