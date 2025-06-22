@@ -212,13 +212,21 @@ def obter_intro(nome: str = Query("Janio")):
 def chat_endpoint(payload: ChatRequest):
     try:
         resposta_ia = call_ai(
-            [
-                {"role": "user", "content": payload.user_input}
-            ],
+            [{"role": "user", "content": payload.user_input}],
             modelo=payload.modelo,
             temperature=0.85,
             max_tokens=600
         )
+
+        # Acessar a aba "mensagens"
+        worksheet = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow").worksheet("mensagens")
+
+        # Gerar timestamp
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        # Gravar a mensagem do usuário e da Jennifer
+        worksheet.append_row([timestamp, "usuário", payload.user_input])
+        worksheet.append_row([timestamp, "jennifer", resposta_ia])
 
         return {
             "response": resposta_ia,
@@ -226,8 +234,10 @@ def chat_endpoint(payload: ChatRequest):
             "state": states[0],
             "modo": payload.modo
         }
+
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
 
 if __name__ == "__main__":
     import uvicorn
