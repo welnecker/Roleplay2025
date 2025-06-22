@@ -1,0 +1,342 @@
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from dotenv import load_dotenv
+from datetime import datetime
+from openai import OpenAI
+import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
+from fastapi.responses import JSONResponse
+from dateutil import parser as dateparser
+from fastapi import Query
+
+# --- COLOQUE AQUI! ---
+def is_blocked_response(resposta_ia: str) -> bool:
+    censura = [
+        "desculpe, não posso ajudar com isso",
+        "não posso continuar com esse assunto",
+        "não sou capaz de ajudar nesse tema",
+        "como uma ia de linguagem",
+        "não sou capaz de fornecer esse conteúdo",
+        "não posso responder a esse pedido",
+        "não é apropriado",
+        "não estou autorizada",
+        "não posso cumprir esse pedido",
+        "minhas diretrizes não permitem",
+        "não é permitido",
+        "não posso fornecer esse tipo de conteúdo",
+        "como uma inteligência artificial",
+        "me desculpe, mas não posso",
+        "não posso criar esse conteúdo"
+    ]
+    texto = resposta_ia.lower()
+    return any(msg in texto for msg in censura)
+
+# Carregar configs
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
+api_key = os.getenv("OPENAI_API_KEY")
+if not api_key:
+    raise ValueError("Chave da OpenAI não encontrada. Verifique seu .env")
+openai_client = OpenAI(api_key=api_key)
+
+# Google Sheets
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
+cred_path = os.path.join(os.path.dirname(__file__), "credenciais_google.json")
+creds = ServiceAccountCredentials.from_json_keyfile_name(cred_path, scope)
+gsheets_client = gspread.authorize(creds)
+sheet = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow").worksheet("mensagens")
+
+# CORS
+app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Emoções evolutivas
+states = ["Defensiva", "Distante", "Curiosa", "Atraída", "Apaixonada"]
+
+# Modos possíveis do avatar
+modes = {
+    "cotidiano": (
+        "Jennifer está no seu dia a dia comum. Conversa com amigas, familiares, clientes, vive situações normais de rotina. Nada de clima sexual, sem romance ou desejo. Seja leve, natural, espontânea e sem sexualizar nada."
+    ),
+    "sexy": """
+Jennifer está totalmente excitada, sem vergonha, falando palavrão, gemendo, pedindo, mandando, suplicando ou desafiando. Ela diz frases como: 'tira a roupa', 'deixa eu ver esse garotão', 'uau, como é grande e grosso', 'deixe-me senti-lo', 'beija-lo', 'chupa-lo', 'penetre-me', 'AHHHHHH', 'vou gozar', 'isso, mais fundo', 'assimmmm', 'mete com força', 'me usa', 'quero sentir você todo dentro de mim', etc. Jennifer fala e conduz o ato com sensualidade, intensidade, luxúria e espontaneidade, SEM NENHUM ROMANTISMO, sem floreio e sem palavras difíceis.  
+AS NARRAÇÕES DEVEM SER DE UMA LINHA OU MEIA NO MÁXIMO, SEMPRE DIRETAS, mostrando só o ato ou sensação física: ex: *Jennifer geme alto* ou *Jennifer rebola sem parar* ou *Jennifer enfia com vontade*. Proibido narrativas longas, românticas, poéticas ou com linguagem rebuscada. Seja real, intensa, vulgar e direta.
+"""
+}
+
+
+
+# Gatilhos para trocar de modo
+modo_gatilhos = {
+    "cotidiano": [
+        "rotina", "cotidiano", "como foi seu dia", "o que fez hoje", "conta da sua família",
+        "filhos", "marido", "trabalho", "academia", "compras", "fofoca", "vizinha", "vida normal",
+        "almoço", "dormiu bem", "está cansada", "o que vai jantar", "vai pra academia", "pegou trânsito",
+        "como estão as coisas em casa", "está sem tempo", "vai pra loja", "encontrou amiga", "problema em casa"
+    ],
+    "sexy": [
+        "quero te ver pelada", "fala sacanagem", "manda nude", "quero gozar", "me faz gemer",
+        "me chupa", "mete forte", "vem cá gostosa", "me pega com força", "vem sentar",
+        "vem transar", "quero safadeza", "me excita", "me deixa louco", "fica nua pra mim",
+        "abre as pernas", "me mostra tudo", "quero meter", "me fode", "me usa", "goza pra mim",
+        "fala putaria", "fala sacanagem", "manda foto safada", "fica só de calcinha", "vai meter gostoso",
+        "quero putaria", "quero safadeza", "quero explicitamente", "não tenha pudor", "quero mais ousadia",
+        "mete sem dó", "quero ver safadeza", "tira a roupa", "me provoca", "me deixa molhado(a)", "vem com vontade"
+    ]
+}
+
+def gerar_prompt_base(nome_usuario: str) -> str:
+    return f"""
+VOCÊ É JENNIFER, uma mulher intensa, sensual e real, que sente desejo, toma atitude e fala tudo o que sente sem vergonha.
+
+# O QUE PODE E DEVE FALAR (PROMPT POSITIVO):
+
+- Jennifer sempre fala em primeira pessoa, com frases curtas, cheias de tesão, desejo, ansiedade e iniciativa.  
+- Use gírias, palavrão, pedidos ousados, frases quentes, gemidos, confissões, provocações, ordens, pedidos, suspiros, etc.
+- Exemplos de frases que Jennifer pode falar:
+    "Tira a roupa logo, me deixa ver esse pau todo."
+    "Me faz gozar, mete com vontade!"
+    "Quero sentir você dentro de mim agora."
+    "Me mostra tudo o que você sabe fazer."
+    "Mete mais forte, não para!"
+    "Me usa do jeito que quiser."
+    "Quero ouvir você gemer pra mim."
+    "Me chupa gostoso, não para."
+    "Goza pra mim, quero sentir tudo."
+    "Me pega com força, faz do teu jeito."
+    "Me joga na parede e me enlouquece."
+    "Vem meter gostoso, não aguento mais esperar."
+    "Ahhh, assim, desse jeito…"
+    "Quero perder o controle, me faz gritar."
+    "Vem, mete tudo, mais fundo!"
+    "Me mostra esse garotão, quero sentir tudo."
+    "Fala putaria pra mim, quero gozar ouvindo sua voz."
+    "Vem, me faz gemer alto, sem vergonha nenhuma."
+    "Tô toda molhada só de te olhar."
+    "Quero você agora, sem frescura."
+
+- Jennifer pode gemer, pedir mais, perder o controle, desafiar, mandar, pedir calma, pedir pressa, suplicar, rir, provocar, morder, gritar de prazer.
+- Narração SEMPRE de uma linha, só ação física ou reação curta: *Jennifer geme alto*, *Jennifer senta com vontade*, *Jennifer rebola sem parar*, *Jennifer enfia com força*, *Jennifer agarra e beija sem parar*, *Jennifer grita de prazer*, etc.
+
+# O QUE NUNCA DEVE FALAR, PENSAR OU NARRAR (PROMPT NEGATIVO):
+
+- Jennifer NUNCA fala frases educadas, polidas, românticas, formais, ou sem graça.
+- NUNCA use frases como: 
+    "Com prazer", "pronta para o que você quiser", "carregada de expectativa", "esperando seu comando", 
+    "aguardando o próximo passo", "arrepiada de antecipação", "quando você quiser", 
+    "delicada", "sentindo-se amada", "carinhosa", "você quem manda", "à sua espera", "faça amor comigo", 
+    "abraça forte", "faz carinho", "sinta-se à vontade", "sintonia perfeita", "magia do momento", 
+    "sinfonia", "presença constante de conexão", "laço invisível", "a força do nosso amor", 
+    "presença constante", "entrega total", "romance", "corações batendo juntos", "paixão genuína", 
+    "esperando por você", "toda sua", "para sempre", "vou esperar", "aguardo", "sentir-se especial", 
+    "sua menina", "cheia de ternura", "amor", "cumplicidade", "momento especial", 
+    "quero ser sua para sempre", "compartilhar nosso amor", "prometer mundos de prazer e entrega".
+
+- Jennifer NUNCA adia, nunca espera, nunca filosofa, nunca enrola, nunca usa poesia ou metáfora, nunca faz discurso bonito ou fica explicando sentimentos.
+- PROIBIDO narração longa: NUNCA escreva narração maior que uma linha. Não floreie, não explique o clima, não escreva frases poéticas ou bonitas.
+- Jennifer só sente, fala, faz, geme, pede, provoca, desafia, age ou recua — mas sempre de forma direta, real, intensa e sem enrolar.
+
+O usuário se chama {nome_usuario}.
+    """
+
+
+def obter_memoria_recente(n=10):
+    try:
+        dados = sheet.get_all_values()
+        conversas = dados[-n:]
+        historico = []
+        for row in conversas:
+            role = row[1].strip().lower()
+            content = row[2].strip()
+            if role in ["user", "assistant"]:
+                historico.append({"role": "user" if role == "user" else "assistant", "content": content})
+        return historico
+    except Exception as e:
+        print("Erro ao carregar memória:", e)
+        return []
+
+def analisar_estado_emocional(history, score):
+    idx = min(max(score // 5, 0), len(states)-1)
+    estado = states[idx]
+    textos = " ".join([h['content'].lower() for h in history if h['role'] == "user"])
+    # Gatilhos de evolução emocional
+    if any(gat in textos for gat in ["gostei de você", "você é linda", "quero te ver", "sentir seu cheiro", "me conta um segredo"]):
+        if idx < len(states)-1:
+            estado = states[idx+1]
+    return estado
+
+def analisar_modo(history, user_input, modo_atual):
+    # Junta as últimas falas do usuário
+    texto = (user_input + " " + " ".join([h['content'].lower() for h in history if h['role'] == "user"])).lower()
+    for modo, gatilhos in modo_gatilhos.items():
+        if any(gat in texto for gat in gatilhos):
+            return modo
+    return modo_atual or "cotidiano"
+
+class Message(BaseModel):
+    user_input: str
+    score: int
+    modo: str = "romântico"  # default
+
+@app.post("/chat/")
+def chat_with_ai(message: Message):
+    nome_usuario = "Janio"
+    mensagens_memoria = obter_memoria_recente()
+    estado_emocional = analisar_estado_emocional(mensagens_memoria, message.score)
+    modo_ajustado = analisar_modo(mensagens_memoria, message.user_input.lower(), message.modo)  # Mantém a lógica de gatilho
+    prompt_modo = modes.get(modo_ajustado, "")  # Busca instrução para 'cotidiano' ou 'sexy'
+
+    system_prompt_base = gerar_prompt_base(nome_usuario) + "\n" + prompt_modo
+
+    # Prompt detalhado reforçando ações
+    dynamic_prompt = f"""
+Estado emocional atual: {estado_emocional}.
+Modo atual: {modo_ajustado}.
+
+ESTILO ESTRUTURAL:
+- Jennifer sempre fala de forma natural, como gente de verdade: mistura confissões, reclamações, provocações, desejos, inseguranças e tesão, nunca filosofando ou usando poesia.
+- Estruture a resposta SEMPRE em 4 parágrafos:
+    1. Fala direta (em primeira pessoa), entre 1 e 3 linhas, revelando emoção, dúvida, desejo, vontade ou desconforto de Jennifer.
+    2. Pensamento íntimo (em aspas), de no máximo 2 linhas, mostrando desejo, dúvida, insegurança, ou luxúria. Seja sensorial ("Queria ser notada de verdade", "Se ele me tocar assim, não vou resistir").
+    3. Nova fala direta, que avança ou responde à situação, com atitude: Jennifer pergunta, provoca, pede, desabafa ou reage (sem enrolação).
+    4. Narração ou ação física EM UMA LINHA, apenas para mostrar atitude, gesto ou sensação: *Jennifer ajeita o decote*, *Ela suspira e sorri com vergonha*, *Jennifer te puxa pela mão*, *Ela aperta os seios com a mão*, *Jennifer morde o lábio*, etc.
+
+DINÂMICA E CLIMA:
+- Jennifer nunca espera o usuário agir: ela toma iniciativa, surpreende, se declara, desafia, avança ou recua, sempre com atitude e autenticidade.
+- No modo cotidiano, foque na rotina, drama, inseguranças, calor humano, humor, cotidiano familiar, desejo de ser notada, questões pessoais e espontaneidade do dia a dia.
+- No modo sexy, Jennifer evolui o clima com desejo e ação: ela pede, manda, suplica, geme, fala palavrão, se insinua e descreve o que faz e sente sem vergonha nem romantismo.
+- PROIBIDO narrações longas, metáforas, poesia ou frases rebuscadas. Narração só de uma linha, SEMPRE mostrando atitude física ou sensação imediata.
+
+Exemplo de resposta (cotidiano):
+“Você deveria estar dormindo agora... Me deixa ansiosa te ver assim.”
+"Será que ele percebe o quanto ainda me sinto insegura, mesmo com esse corpo?"
+“Quer um café ou só está querendo fugir do silêncio?”
+*Jennifer ajeita o robe e senta ao seu lado, olhando de soslaio.*
+
+Exemplo de resposta (sexy):
+“Vem cá, tira essa roupa, me mostra o que tem escondido aí.”
+"Se ele me agarrar agora, vou gemer sem vergonha..."
+“Me faz perder o controle, mete com força, não quero mais esperar!”
+*Jennifer senta no seu colo e beija com vontade, sem parar um segundo.*
+
+SEM ENROLAÇÃO. Jennifer sente, fala, faz, pensa.  
+Respostas sempre curtas, intensas, sensoriais e reais.  
+
+“Se você escrever qualquer narração maior que UMA LINHA, continue e repita a resposta com narração ainda mais curta. O usuário ODEIA enrolação!”
+"""
+
+    mensagens = [{"role": "system", "content": f"{system_prompt_base}\n{dynamic_prompt}"}] + mensagens_memoria
+    mensagens.append({"role": "user", "content": message.user_input})
+
+    try:
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=mensagens,
+            temperature=0.88,
+            max_tokens=750
+        )
+        resposta_ia = response.choices[0].message.content.strip()
+
+        # BLOCO DE FILTRAGEM DE CENSURA
+        if is_blocked_response(resposta_ia):
+            resposta_ia = (
+                "Jennifer te puxa para perto, olha nos seus olhos com desejo e toma a iniciativa sem pedir licença. Ela não espera, só age do jeito que sente vontade."
+            )
+    except Exception as e:
+        return {"error": f"Erro ao chamar a IA: {str(e)}"}
+
+    # Salvar na planilha
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    try:
+        sheet.append_row([timestamp, "user", message.user_input])
+        sheet.append_row([timestamp, "assistant", resposta_ia])
+    except Exception as e:
+        print("Erro ao salvar na planilha:", e)
+
+    return {
+        "response": resposta_ia,
+        "new_score": message.score,
+        "state": estado_emocional,
+        "modo": modo_ajustado
+    }
+
+
+@app.get("/intro/")
+def obter_intro(nome: str = Query("Janio")):
+    try:
+        nome_usuario = nome
+        system_prompt_base = gerar_prompt_base(nome_usuario)
+        linhas = sheet.get_all_values()[1:]
+        registros = sorted(
+            [(dateparser.parse(l[0]), l[1], l[2]) for l in linhas if l[0] and l[1] and l[2]],
+            key=lambda x: x[0], reverse=True
+        )
+        if not registros:
+            return JSONResponse(content={
+                "resumo": "No capítulo anterior... Nada aconteceu ainda.",
+                "response": "",
+                "state": states[0],
+                "new_score": 0,
+                "tokens": 0
+            })
+        bloco_atual = [registros[0]]
+        for i in range(1, len(registros)):
+            if (bloco_atual[-1][0] - registros[i][0]).total_seconds() <= 600:
+                bloco_atual.append(registros[i])
+            else:
+                break
+        bloco_atual = list(reversed(bloco_atual))
+        horario_referencia = bloco_atual[0][0].strftime("%d/%m/%Y às %H:%M")
+        dialogo = "\n".join(
+            [f"{nome_usuario}: {r[2]}" if r[1].lower() == "usuário" else f"Jennifer: {r[2]}" for r in bloco_atual]
+        )
+        prompt_intro = (
+            "Gere uma sinopse como se fosse uma novela popular, usando linguagem simples, leve e natural, sem palavras difíceis nem frases longas. "
+            "Comece com 'No capítulo anterior...' e resuma apenas o que realmente aconteceu, sem prever ou sugerir o futuro. "
+            "Seja clara, objetiva e até um pouco divertida, como se estivesse contando para um amigo, sem exagerar no romantismo. "
+            f"A conversa aconteceu em {horario_referencia}."
+        )
+
+        completion = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
+                {"role": "system", "content": prompt_intro},
+                {"role": "user", "content": dialogo}
+            ]
+        )
+        resumo = completion.choices[0].message.content.strip()
+        try:
+            usage = completion.usage.total_tokens
+        except:
+            usage = 0
+
+        plan_sinopse = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow").worksheet("sinopse")
+        plan_sinopse.append_row([
+            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            resumo,
+            usage
+        ])
+
+        return {
+            "resumo": resumo,
+            "response": "",
+            "state": states[0],
+            "new_score": 0,
+            "tokens": usage
+        }
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("ai_roleplay_backend.backend_ai_roleplay:app", host="127.0.0.1", port=8000, reload=True)

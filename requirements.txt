@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+gspread
+oauth2client
+python-dotenv
+requests
+openai
+python-dateutil
+pydantic
+
