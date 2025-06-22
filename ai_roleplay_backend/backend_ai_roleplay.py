@@ -10,34 +10,31 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from fastapi.responses import JSONResponse
 from dateutil import parser as dateparser
-
-
-# OpenAI (só se for usar GPT)
 from openai import OpenAI
 
-# --- Filtro para respostas bloqueadas (raro em uncensored) ---
+# --- Estados e modos ---
+states = ["padrão"]
+
+modes = {
+    "romântico": "texto padrão romântico",
+    "cotidiano": "texto cotidiano",
+    "sexy": "texto sexy"
+}
+
+# --- Funções auxiliares ---
+def gerar_prompt_base(nome_usuario):
+    return f"Sinopse gerada para {nome_usuario}."
+
 def is_blocked_response(resposta_ia: str) -> bool:
     censura = [
-        "desculpe, não posso ajudar com isso",
-        "não posso continuar com esse assunto",
-        "não sou capaz de ajudar nesse tema",
-        "como uma ia de linguagem",
-        "não sou capaz de fornecer esse conteúdo",
-        "não posso responder a esse pedido",
-        "não é apropriado",
-        "não estou autorizada",
-        "não posso cumprir esse pedido",
-        "minhas diretrizes não permitem",
-        "não é permitido",
-        "não posso fornecer esse tipo de conteúdo",
-        "como uma inteligência artificial",
-        "me desculpe, mas não posso",
-        "não posso criar esse conteúdo"
+        "desculpe, não posso ajudar com isso", "não posso continuar com esse assunto",
+        "não sou capaz de ajudar nesse tema", "como uma ia de linguagem",
+        "não posso fornecer esse conteúdo", "não posso responder a esse pedido",
+        "não estou autorizada", "minhas diretrizes não permitem",
+        "me desculpe, mas não posso", "não posso criar esse conteúdo"
     ]
-    texto = resposta_ia.lower()
-    return any(msg in texto for msg in censura)
+    return any(msg in resposta_ia.lower() for msg in censura)
 
-# --- Função universal: alterna GPT ou LM Studio local ---
 def call_ai(mensagens, modelo="gpt", temperature=0.88, max_tokens=750):
     if modelo == "lmstudio":
         url = "http://127.0.0.1:1234/v1/chat/completions"
@@ -52,11 +49,10 @@ def call_ai(mensagens, modelo="gpt", temperature=0.88, max_tokens=750):
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"].strip()
     elif modelo == "gpt":
-        # Carregar chave do .env
         load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
         api_key = os.getenv("OPENAI_API_KEY")
         if not api_key:
-            raise ValueError("Chave da OpenAI não encontrada. Verifique seu .env")
+            raise ValueError("Chave da OpenAI não encontrada.")
         openai_client = OpenAI(api_key=api_key)
         response = openai_client.chat.completions.create(
             model="gpt-4o",
@@ -66,24 +62,22 @@ def call_ai(mensagens, modelo="gpt", temperature=0.88, max_tokens=750):
         )
         return response.choices[0].message.content.strip()
     else:
-        raise ValueError("Modelo de IA não reconhecido. Use 'gpt' ou 'lmstudio'.")
+        raise ValueError("Modelo não reconhecido: use 'gpt' ou 'lmstudio'.")
 
-# --- Carregar .env (Google) e planilha ---
+# --- Setup planilha Google ---
 load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
 ]
-# Carregar credencial do Google a partir da variável de ambiente (Railway)
 google_creds_json = os.environ["GOOGLE_CREDS_JSON"]
 creds_dict = json.loads(google_creds_json)
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gsheets_client = gspread.authorize(creds)
 sheet = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow").worksheet("mensagens")
 
-
-# --- FastAPI e CORS ---
+# --- API FastAPI ---
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -93,58 +87,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# --- Classe Message com seleção de IA ---
 class Message(BaseModel):
     user_input: str
     score: int
     modo: str = "romântico"
-    modelo: str = "gpt"  # "gpt" (padrão) ou "lmstudio"
-
-# ... Suas funções auxiliares (memória, prompt, etc.) ...
-
-@app.post("/chat/")
-def chat_with_ai(message: Message):
-    nome_usuario = "Janio"
-    mensagens_memoria = obter_memoria_recente()
-    estado_emocional = analisar_estado_emocional(mensagens_memoria, message.score)
-    modo_ajustado = analisar_modo(mensagens_memoria, message.user_input.lower(), message.modo)
-    prompt_modo = modes.get(modo_ajustado, "")
-
-    system_prompt_base = gerar_prompt_base(nome_usuario) + "\n" + prompt_modo
-
-    dynamic_prompt = f"""
-Estado emocional atual: {estado_emocional}.
-Modo atual: {modo_ajustado}.
-# ... (continue com o prompt dinâmico que você já usa) ...
-"""
-
-    mensagens = [{"role": "system", "content": f"{system_prompt_base}\n{dynamic_prompt}"}] + mensagens_memoria
-    mensagens.append({"role": "user", "content": message.user_input})
-
-    try:
-        resposta_ia = call_ai(mensagens, modelo=message.modelo)
-        if is_blocked_response(resposta_ia):
-            resposta_ia = (
-                "Jennifer te puxa para perto, olha nos seus olhos com desejo e toma a iniciativa sem pedir licença. Ela não espera, só age do jeito que sente vontade."
-            )
-    except Exception as e:
-        return {"error": f"Erro ao chamar a IA: {str(e)}"}
-
-    # Salvar na planilha
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    try:
-        sheet.append_row([timestamp, "user", message.user_input])
-        sheet.append_row([timestamp, "assistant", resposta_ia])
-    except Exception as e:
-        print("Erro ao salvar na planilha:", e)
-
-    return {
-        "response": resposta_ia,
-        "new_score": message.score,
-        "state": estado_emocional,
-        "modo": modo_ajustado
-    }
-
+    modelo: str = "gpt"
 
 @app.get("/intro/")
 def obter_intro(nome: str = Query("Janio")):
@@ -176,27 +123,19 @@ def obter_intro(nome: str = Query("Janio")):
             [f"{nome_usuario}: {r[2]}" if r[1].lower() == "usuário" else f"Jennifer: {r[2]}" for r in bloco_atual]
         )
         prompt_intro = (
-            "Gere uma sinopse como se fosse uma novela popular, usando linguagem simples, leve e natural, sem palavras difíceis nem frases longas. "
-            "Comece com 'No capítulo anterior...' e resuma apenas o que realmente aconteceu, sem prever ou sugerir o futuro. "
-            "Seja clara, objetiva e até um pouco divertida, como se estivesse contando para um amigo, sem exagerar no romantismo. "
+            "Gere uma sinopse como se fosse uma novela popular, com linguagem simples, leve e natural. "
+            "Comece com 'No capítulo anterior...' e resuma sem prever o futuro. "
             f"A conversa aconteceu em {horario_referencia}."
         )
 
-        # Aqui usa LM Studio também:
-        completion = call_local_llm([
+        resumo = call_ai([
             {"role": "system", "content": prompt_intro},
             {"role": "user", "content": dialogo}
-        ], temperature=0.6, max_tokens=500)
-        resumo = completion
+        ], modelo="gpt", temperature=0.6, max_tokens=500)
 
-        usage = len(resumo.split())  # Só uma estimativa de tokens
-
+        usage = len(resumo.split())
         plan_sinopse = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow").worksheet("sinopse")
-        plan_sinopse.append_row([
-            datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            resumo,
-            usage
-        ])
+        plan_sinopse.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), resumo, usage])
 
         return {
             "resumo": resumo,
