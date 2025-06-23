@@ -1,18 +1,16 @@
 from fastapi import FastAPI, Query
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 from datetime import datetime
-import json
-import os
-import requests
-import gspread
-from oauth2client.service_account import ServiceAccountCredentials
 from fastapi.responses import JSONResponse
 from dateutil import parser as dateparser
 from openai import OpenAI
+import json
+import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
-# Estados e modos predefinidos
+# Emoções e modos
 states = ["padrão"]
 modes = {
     "romântico": "texto padrão romântico",
@@ -21,7 +19,6 @@ modes = {
 }
 
 # Censura
-
 def is_blocked_response(resposta_ia: str) -> bool:
     censura = [
         "desculpe, não posso ajudar com isso", "não posso continuar com esse assunto",
@@ -34,41 +31,24 @@ def is_blocked_response(resposta_ia: str) -> bool:
     texto = resposta_ia.lower()
     return any(msg in texto for msg in censura)
 
-
+# Prompt base
 def gerar_prompt_base(nome_usuario):
     return f"Sinopse gerada para {nome_usuario}."
 
-# Função universal de IA
+# IA com GPT apenas
+def call_ai(mensagens, temperature=0.88, max_tokens=750):
+    api_key = os.environ["OPENAI_API_KEY"]
+    openai_client = OpenAI(api_key=api_key)
 
-def call_ai(mensagens, modelo="gpt", temperature=0.88, max_tokens=750):
-    if modelo == "lmstudio":
-        url = "http://127.0.0.1:1234/v1/chat/completions"
-        headers = {"Content-Type": "application/json"}
-        data = {
-            "model": "llama-3-8b-lexi-uncensored",
-            "messages": mensagens,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        resp = requests.post(url, headers=headers, json=data, timeout=60)
-        resp.raise_for_status()
-        return resp.json()["choices"][0]["message"]["content"].strip()
-    elif modelo == "gpt":
-        load_dotenv()
-        api_key = os.getenv("OPENAI_API_KEY")
-        openai_client = OpenAI(api_key=api_key)
-        response = openai_client.chat.completions.create(
-            model="gpt-4o",
-            messages=mensagens,
-            temperature=temperature,
-            max_tokens=max_tokens,
-        )
-        return response.choices[0].message.content.strip()
-    else:
-        raise ValueError("Modelo não reconhecido")
+    response = openai_client.chat.completions.create(
+        model="gpt-4o",
+        messages=mensagens,
+        temperature=temperature,
+        max_tokens=max_tokens,
+    )
+    return response.choices[0].message.content.strip()
 
 # GSheets
-load_dotenv()
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_dict = json.loads(os.environ["GOOGLE_CREDS_JSON"])
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
@@ -89,7 +69,6 @@ class Message(BaseModel):
     user_input: str
     score: int
     modo: str = "romântico"
-    modelo: str = "gpt"
 
 @app.post("/chat/")
 def chat_with_ai(message: Message):
@@ -120,7 +99,7 @@ SEM ENROLAÇÃO. Jennifer sente, fala, faz, pensa. Respostas sempre curtas e int
     ]
 
     try:
-        resposta_ia = call_ai(mensagens, modelo=message.modelo)
+        resposta_ia = call_ai(mensagens)
         if is_blocked_response(resposta_ia):
             resposta_ia = "Jennifer te puxa para perto com desejo e não espera você falar. Ela toma a iniciativa."
     except Exception as e:
@@ -181,7 +160,7 @@ def obter_intro(nome: str = Query("Janio")):
         resumo = call_ai([
             {"role": "system", "content": prompt_intro},
             {"role": "user", "content": dialogo}
-        ], modelo="gpt", temperature=0.6, max_tokens=500)
+        ], temperature=0.6, max_tokens=500)
 
         usage = len(resumo.split())
         plan_sinopse = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow").worksheet("sinopse")
@@ -197,6 +176,7 @@ def obter_intro(nome: str = Query("Janio")):
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+# Execução local opcional
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("backend_ai_roleplay:app", host="0.0.0.0", port=8000, reload=True)
