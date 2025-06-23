@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, Query
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
-from dotenv import load_dotenv
 from datetime import datetime
 import json
 import os
@@ -15,8 +14,12 @@ from openai import OpenAI
 # --- Inicialização ---
 states = ["padrão"]
 
+# --- Carregamento do .env somente em ambiente local ---
+if not os.environ.get("RAILWAY_STATIC_URL"):  # ou use "RAILWAY_ENVIRONMENT" se preferir
+    from dotenv import load_dotenv
+    load_dotenv()  # Só carrega o .env se não estiver no Railway
+
 # --- Setup GSheets ---
-load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -36,6 +39,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # --- Utilitários ---
 def is_blocked_response(resposta_ia: str) -> bool:
