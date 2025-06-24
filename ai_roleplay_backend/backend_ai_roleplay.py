@@ -9,6 +9,17 @@ import json
 import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+import sys
+import io
+
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+
+
+def limpar_texto(texto: str) -> str:
+    texto = ''.join(c for c in texto if 31 < ord(c) < 127 or c in "\n\r\t")
+    return texto.encode('utf-8', 'ignore').decode('utf-8')
+
+
 
 # Configuração Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -116,9 +127,11 @@ def chat_with_ai(message: Message):
     ]
 
     try:
-        resposta_ia = call_ai(mensagens)
+        resposta_bruta = call_ai(mensagens)
+        resposta_ia = limpar_texto(resposta_bruta)
         if is_blocked_response(resposta_ia):
             resposta_ia = f"{nome_personagem} te puxa para perto com desejo e toma a iniciativa."
+
     except Exception as e:
         return {"error": str(e)}
 
@@ -176,10 +189,13 @@ def obter_intro(nome: str = Query("Janio"), personagem: str = Query("Jennifer"))
             f"A conversa aconteceu em {horario_referencia}."
         )
 
-        resumo = call_ai([
+        resumo_bruto = call_ai([
             {"role": "system", "content": prompt_intro},
             {"role": "user", "content": dialogo}
         ], temperature=0.6, max_tokens=500)
+
+        resumo = limpar_texto(resumo_bruto)
+
 
         usage = len(resumo.split())
         aba_sinopse = f"{personagem}_sinopse"
