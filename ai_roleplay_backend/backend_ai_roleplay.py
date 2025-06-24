@@ -18,6 +18,7 @@ if "private_key" in creds_dict:
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gsheets_client = gspread.authorize(creds)
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
+GITHUB_IMG_URL = "https://raw.githubusercontent.com/welnecker/janio-ai-roleplay/main/images/"
 
 # FastAPI
 app = FastAPI()
@@ -72,13 +73,14 @@ def listar_personagens():
         dados = aba.get_all_records()
         personagens = []
         for p in dados:
+            nome = p.get("nome", "")
             personagens.append({
-                "nome": p.get("nome", ""),
+                "nome": nome,
                 "descricao": p.get("descrição curta", ""),
                 "idade": p.get("idade", ""),
                 "estilo": p.get("estilo fala", ""),
                 "estado_emocional": p.get("estado_emocional", ""),
-                "foto": p.get("foto", "")  # se desejar usar imagem
+                "foto": f"{GITHUB_IMG_URL}{nome.lower()}.jpg"
             })
         return personagens
     except Exception as e:
