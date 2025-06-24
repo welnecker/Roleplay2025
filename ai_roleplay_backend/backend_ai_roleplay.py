@@ -8,7 +8,19 @@ from openai import OpenAI
 import json
 import os
 import gspread
+import unicodedata
+import re
 from oauth2client.service_account import ServiceAccountCredentials
+
+# Utilitário de limpeza de texto
+def limpar_texto(texto: str) -> str:
+    if not texto:
+        return ""
+    texto = texto.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
+    texto = unicodedata.normalize("NFC", texto)
+    texto = texto.replace("\u00A0", " ")
+    texto = re.sub(r"[\r\t]+", "", texto)
+    return texto.strip()
 
 # Configuração Google Sheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -75,11 +87,11 @@ def listar_personagens():
         for p in dados:
             nome = p.get("nome", "")
             personagens.append({
-                "nome": nome,
-                "descricao": p.get("descrição curta", ""),
-                "idade": p.get("idade", ""),
-                "estilo": p.get("estilo fala", ""),
-                "estado_emocional": p.get("estado_emocional", ""),
+                "nome": limpar_texto(nome),
+                "descricao": limpar_texto(p.get("descrição curta", "")),
+                "idade": limpar_texto(p.get("idade", "")),
+                "estilo": limpar_texto(p.get("estilo fala", "")),
+                "estado_emocional": limpar_texto(p.get("estado_emocional", "")),
                 "foto": f"{GITHUB_IMG_URL}{nome.strip()}.jpg"
             })
         return personagens
@@ -89,20 +101,20 @@ def listar_personagens():
 @app.post("/chat/")
 def chat_with_ai(message: Message):
     nome_usuario = "Janio"
-    nome_personagem = message.personagem
+    nome_personagem = limpar_texto(message.personagem)
     dados_pers = carregar_dados_personagem(nome_personagem)
 
-    estado_emocional = dados_pers.get("estado_emocional", "neutro")
-    estilo = dados_pers.get("estilo fala", "fala natural e emocional")
+    estado_emocional = limpar_texto(dados_pers.get("estado_emocional", "neutro"))
+    estilo = limpar_texto(dados_pers.get("estilo fala", "fala natural e emocional"))
     prompt_modo = {
         "romântico": "texto padrão romântico",
         "cotidiano": "texto cotidiano",
         "sexy": "texto sexy"
     }.get(message.modo, "")
 
-    system_prompt = f"Estilo de fala: {estilo}\nEstado emocional: {estado_emocional}\nDiretriz positiva: {dados_pers.get('diretriz_positiva', '')}\nDiretriz negativa: {dados_pers.get('diretriz_negativa', '')}\n{prompt_modo}"
+    system_prompt = f"Estilo de fala: {estilo}\nEstado emocional: {estado_emocional}\nDiretriz positiva: {limpar_texto(dados_pers.get('diretriz_positiva', ''))}\nDiretriz negativa: {limpar_texto(dados_pers.get('diretriz_negativa', ''))}\n{prompt_modo}"
 
-    dynamic_prompt = f"""
+    dynamic_prompt = """
 - Estruture a resposta SEMPRE em 4 parágrafos:
   1. Fala direta do personagem.
   2. Pensamento interno (em aspas).
@@ -112,7 +124,7 @@ def chat_with_ai(message: Message):
 
     mensagens = [
         {"role": "system", "content": f"{system_prompt}\n{dynamic_prompt}"},
-        {"role": "user", "content": message.user_input}
+        {"role": "user", "content": limpar_texto(message.user_input)}
     ]
 
     try:
@@ -122,10 +134,11 @@ def chat_with_ai(message: Message):
     except Exception as e:
         return {"error": str(e)}
 
+    resposta_ia = limpar_texto(resposta_ia)
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         aba_mensagens = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
-        aba_mensagens.append_row([timestamp, "user", message.user_input])
+        aba_mensagens.append_row([timestamp, "user", limpar_texto(message.user_input)])
         aba_mensagens.append_row([timestamp, "assistant", resposta_ia])
     except Exception as e:
         print(f"Erro ao salvar mensagens: {e}")
@@ -140,6 +153,7 @@ def chat_with_ai(message: Message):
 @app.get("/intro/")
 def obter_intro(nome: str = Query("Janio"), personagem: str = Query("Jennifer")):
     try:
+        personagem = limpar_texto(personagem)
         sheet = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         system_prompt_base = f"Sinopse gerada para {nome}."
 
@@ -159,7 +173,7 @@ def obter_intro(nome: str = Query("Janio"), personagem: str = Query("Jennifer"))
 
         bloco_atual = [registros[0]]
         for i in range(1, len(registros)):
-            if (bloco_atual[-1][0] - registros[i][0]).total_seconds() <= 600:
+            if abs((bloco_atual[-1][0] - registros[i][0]).total_seconds()) <= 600:
                 bloco_atual.append(registros[i])
             else:
                 break
@@ -167,7 +181,7 @@ def obter_intro(nome: str = Query("Janio"), personagem: str = Query("Jennifer"))
         bloco_atual = list(reversed(bloco_atual))
         horario_referencia = bloco_atual[0][0].strftime("%d/%m/%Y às %H:%M")
         dialogo = "\n".join([
-            f"{nome}: {r[2]}" if r[1].lower() == "usuário" else f"{personagem}: {r[2]}" for r in bloco_atual
+            f"{nome}: {limpar_texto(r[2])}" if r[1].lower() == "usuário" else f"{personagem}: {limpar_texto(r[2])}" for r in bloco_atual
         ])
 
         prompt_intro = (
@@ -181,6 +195,7 @@ def obter_intro(nome: str = Query("Janio"), personagem: str = Query("Jennifer"))
             {"role": "user", "content": dialogo}
         ], temperature=0.6, max_tokens=500)
 
+        resumo = limpar_texto(resumo)
         usage = len(resumo.split())
         aba_sinopse = f"{personagem}_sinopse"
         plan_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(aba_sinopse)
