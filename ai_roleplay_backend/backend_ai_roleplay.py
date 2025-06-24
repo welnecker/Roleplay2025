@@ -137,6 +137,14 @@ def chat_with_ai(message: Message):
     try:
         resposta_bruta = call_ai(mensagens)
         resposta_ia = limpar_texto(resposta_bruta)
+
+        # Verifica se ainda contém artefatos de encoding comuns, e tenta corrigir o inverso
+        if any(s in resposta_ia for s in ['Ã', 'â', 'ª', '§']):
+            try:
+                resposta_ia = ''.join(c for c in str(resposta_bruta).encode('utf-8').decode('latin1') if c.isprintable())
+            except Exception:
+                pass
+
         if is_blocked_response(resposta_ia):
             resposta_ia = f"{nome_personagem} te puxa para perto com desejo e toma a iniciativa."
 
@@ -204,6 +212,12 @@ def obter_intro(nome: str = Query("Janio"), personagem: str = Query("Jennifer"))
 
         resumo = limpar_texto(resumo_bruto)
 
+        # Correção reversa, se ainda houver caracteres suspeitos
+        if any(s in resumo for s in ['Ã', 'â', 'ª', '§']):
+            try:
+                resumo = ''.join(c for c in str(resumo_bruto).encode('utf-8').decode('latin1') if c.isprintable())
+            except Exception:
+                pass
 
         usage = len(resumo.split())
         aba_sinopse = f"{personagem}_sinopse"
