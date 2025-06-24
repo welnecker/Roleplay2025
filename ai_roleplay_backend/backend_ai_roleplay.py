@@ -11,7 +11,6 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import sys
 import io
-import codecs
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
