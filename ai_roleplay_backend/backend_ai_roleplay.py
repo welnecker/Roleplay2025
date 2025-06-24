@@ -11,13 +11,21 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import sys
 import io
+import codecs
 
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 def limpar_texto(texto: str) -> str:
-    # Remove apenas caracteres de controle, mas mantém acentos (UTF-8)
-    return ''.join(c for c in texto if c.isprintable())
+    """
+    Corrige problemas de encoding comuns (ex: UTF-8 lido como ISO-8859-1),
+    além de remover caracteres de controle.
+    """
+    try:
+        texto_corrigido = texto.encode('latin1').decode('utf-8')
+    except UnicodeEncodeError:
+        texto_corrigido = texto  # Se já estiver certo, mantém
+    return ''.join(c for c in texto_corrigido if c.isprintable())
 
 
 
