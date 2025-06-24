@@ -18,7 +18,7 @@ if "private_key" in creds_dict:
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gsheets_client = gspread.authorize(creds)
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
-GITHUB_IMG_URL = "https://raw.githubusercontent.com/welnecker/janio-ai-roleplay/main/images/"
+GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 
 # FastAPI
 app = FastAPI()
