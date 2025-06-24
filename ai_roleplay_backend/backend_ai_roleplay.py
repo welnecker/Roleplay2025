@@ -137,8 +137,8 @@ def chat_with_ai(message: Message):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
         aba_mensagens = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
-        aba_mensagens.append_row([timestamp, "user", message.user_input])
-        aba_mensagens.append_row([timestamp, "assistant", resposta_ia])
+        aba_mensagens.append_row([timestamp, "user", limpar_texto(message.user_input)])
+        aba_mensagens.append_row([timestamp, "assistant", limpar_texto(resposta_ia)])
     except Exception as e:
         print(f"Erro ao salvar mensagens: {e}")
 
@@ -189,11 +189,12 @@ def obter_intro(nome: str = Query("Janio"), personagem: str = Query("Jennifer"))
         )
 
         resumo = call_ai([
-            {"role": "system", "content": prompt_intro},
-            {"role": "user", "content": dialogo}
-        ], temperature=0.6, max_tokens=500)
-
-        usage = len(resumo.split())
+                {"role": "system", "content": prompt_intro},
+                {"role": "user", "content": dialogo}
+            ], temperature=0.6, max_tokens=500)
+            
+            resumo = limpar_texto(resumo)
+            usage = len(resumo.split())
         aba_sinopse = f"{personagem}_sinopse"
         plan_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(aba_sinopse)
         plan_sinopse.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), resumo, usage])
