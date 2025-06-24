@@ -18,7 +18,11 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 def limpar_texto(texto: str) -> str:
     try:
         texto = str(texto)
-        texto_corrigido = texto.encode('latin1').decode('utf-8')
+        # Tenta corrigir erro clássico: UTF-8 mal interpretado como Latin-1
+        texto_corrigido = texto.encode('utf-8').decode('latin1')
+        # Se ainda estiver errado, tenta o inverso
+        if any(c in texto_corrigido for c in ['Ã', 'â', 'ª']):
+            texto_corrigido = texto.encode('latin1').decode('utf-8')
     except (UnicodeEncodeError, UnicodeDecodeError, AttributeError):
         texto_corrigido = texto
     return ''.join(c for c in texto_corrigido if c.isprintable())
