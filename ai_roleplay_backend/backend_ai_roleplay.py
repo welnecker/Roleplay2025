@@ -80,7 +80,7 @@ def listar_personagens():
                 "idade": p.get("idade", ""),
                 "estilo": p.get("estilo fala", ""),
                 "estado_emocional": p.get("estado_emocional", ""),
-                "foto": f"{GITHUB_IMG_URL}{nome.lower()}.jpg"
+                "foto": f"{GITHUB_IMG_URL}{nome.strip()}.jpg"
             })
         return personagens
     except Exception as e:
