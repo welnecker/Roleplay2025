@@ -65,6 +65,25 @@ def carregar_dados_personagem(nome_personagem: str):
             return p
     return {}
 
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        personagens = []
+        for p in dados:
+            personagens.append({
+                "nome": p.get("nome", ""),
+                "descricao": p.get("descrição curta", ""),
+                "idade": p.get("idade", ""),
+                "estilo": p.get("estilo fala", ""),
+                "estado_emocional": p.get("estado_emocional", ""),
+                "foto": p.get("foto", "")  # se desejar usar imagem
+            })
+        return personagens
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.post("/chat/")
 def chat_with_ai(message: Message):
     nome_usuario = "Janio"
