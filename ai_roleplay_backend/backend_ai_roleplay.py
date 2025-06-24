@@ -50,7 +50,7 @@ def listar_personagens():
 
         for idx, p in enumerate(dados):
             print(f"Linha {idx+2}: {p}")  # log linha completa
-            if str(p.get("usar", "não")).strip().lower() != "sim":
+            if "usar" in p and str(p["usar"]).strip().lower() != "sim":
                 print(f"Personagem '{p.get('nome', '')}' ignorado por não estar marcado como 'sim'")
                 continue
 
