@@ -20,6 +20,18 @@ gsheets_client = gspread.authorize(creds)
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 
+# Utilitário de limpeza de texto com correção de codificação
+def limpar_texto(texto: str) -> str:
+    if not texto:
+        return ""
+    try:
+        texto = texto.encode("latin1").decode("utf-8")
+    except:
+        pass
+    texto = texto.encode("utf-8", errors="ignore").decode("utf-8", errors="ignore")
+    texto = texto.replace("\u00A0", " ")
+    return texto.strip()
+
 # FastAPI
 app = FastAPI()
 app.add_middleware(
