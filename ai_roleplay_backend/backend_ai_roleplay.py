@@ -16,8 +16,8 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 def limpar_texto(texto: str) -> str:
-    texto = ''.join(c for c in texto if 31 < ord(c) < 127 or c in "\n\r\t")
-    return texto.encode('utf-8', 'ignore').decode('utf-8')
+    # Remove apenas caracteres de controle, mas mantém acentos (UTF-8)
+    return ''.join(c for c in texto if c.isprintable())
 
 
 
