@@ -51,6 +51,9 @@ def call_ai(mensagens, temperature=0.88, max_tokens=750):
 # GSheets
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_dict = json.loads(os.environ["GOOGLE_CREDS_JSON"])
+# ✅ Corrige quebras de linha na chave privada
+if "private_key" in creds_dict:
+    creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gsheets_client = gspread.authorize(creds)
 sheet = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow").worksheet("mensagens")
