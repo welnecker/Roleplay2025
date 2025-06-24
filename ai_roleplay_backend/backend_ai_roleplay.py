@@ -16,16 +16,19 @@ sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
 
 def limpar_texto(texto: str) -> str:
+    texto = str(texto)
+
+    # Se já parece estar ok, retorna direto
+    if not any(c in texto for c in ['Ã', 'â', 'ª', '§']):
+        return ''.join(c for c in texto if c.isprintable())
+
     try:
-        texto = str(texto)
-        # Tenta corrigir erro clássico: UTF-8 mal interpretado como Latin-1
-        texto_corrigido = texto.encode('utf-8').decode('latin1')
-        # Se ainda estiver errado, tenta o inverso
-        if any(c in texto_corrigido for c in ['Ã', 'â', 'ª']):
-            texto_corrigido = texto.encode('latin1').decode('utf-8')
-    except (UnicodeEncodeError, UnicodeDecodeError, AttributeError):
-        texto_corrigido = texto
-    return ''.join(c for c in texto_corrigido if c.isprintable())
+        # Tenta corrigir: foi decodificado como Latin-1 indevidamente
+        texto_corrigido = texto.encode('latin1').decode('utf-8')
+        return ''.join(c for c in texto_corrigido if c.isprintable())
+    except Exception:
+        return ''.join(c for c in texto if c.isprintable())
+
 
 
 
@@ -138,18 +141,12 @@ def chat_with_ai(message: Message):
         resposta_bruta = call_ai(mensagens)
         resposta_ia = limpar_texto(resposta_bruta)
 
-        # Verifica se ainda contém artefatos de encoding comuns, e tenta corrigir o inverso
-        if any(s in resposta_ia for s in ['Ã', 'â', 'ª', '§']):
-            try:
-                resposta_ia = ''.join(c for c in str(resposta_bruta).encode('utf-8').decode('latin1') if c.isprintable())
-            except Exception:
-                pass
-
         if is_blocked_response(resposta_ia):
             resposta_ia = f"{nome_personagem} te puxa para perto com desejo e toma a iniciativa."
 
     except Exception as e:
         return {"error": str(e)}
+
 
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     try:
@@ -211,14 +208,7 @@ def obter_intro(nome: str = Query("Janio"), personagem: str = Query("Jennifer"))
         ], temperature=0.6, max_tokens=500)
 
         resumo = limpar_texto(resumo_bruto)
-
-        # Correção reversa, se ainda houver caracteres suspeitos
-        if any(s in resumo for s in ['Ã', 'â', 'ª', '§']):
-            try:
-                resumo = ''.join(c for c in str(resumo_bruto).encode('utf-8').decode('latin1') if c.isprintable())
-            except Exception:
-                pass
-
+   
         usage = len(resumo.split())
         aba_sinopse = f"{personagem}_sinopse"
         plan_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(aba_sinopse)
