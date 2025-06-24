@@ -48,12 +48,14 @@ def listar_personagens():
         dados = aba.get_all_records()
         personagens = []
 
-        for p in dados:
+        for idx, p in enumerate(dados):
+            print(f"Linha {idx+2}: {p}")  # log linha completa
             if str(p.get("usar", "não")).strip().lower() != "sim":
+                print(f"Personagem '{p.get('nome', '')}' ignorado por não estar marcado como 'sim'")
                 continue
 
             nome = p.get("nome", "").strip()
-            personagens.append({
+            personagem = {
                 "nome": nome,
                 "descricao": p.get("descrição curta", "").strip(),
                 "idade": p.get("idade", "").strip(),
@@ -61,11 +63,15 @@ def listar_personagens():
                 "estado_emocional": p.get("estado_emocional", "").strip(),
                 "exemplo": p.get("exemplo", "").strip(),
                 "foto": f"{GITHUB_IMG_URL}{nome}.jpg"
-            })
+            }
+            print(f"Personagem adicionado: {personagem}")
+            personagens.append(personagem)
 
+        print(f"Total personagens carregados: {len(personagens)}")
         return personagens
 
     except Exception as e:
+        print(f"Erro ao carregar personagens: {e}")
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 # === 6. Memórias automáticas ===
@@ -102,11 +108,12 @@ def chat_com_ia(mensagem: Message):
         memorias = carregar_memorias(personagem)
         memorias_texto = "\n".join([f"{m['tipo']}: {m['titulo']} - {m['conteudo']}" for m in memorias])
 
-        prompt = f"""Estilo de fala: {personagem_dados.get('estilo fala')}\n
-        Estado emocional: {personagem_dados.get('estado_emocional')}\n
-        Exemplo: {personagem_dados.get('exemplo')}\n
-        Memórias:\n{memorias_texto}\n
-        Usuário: {mensagem.user_input}\nPersonagem:"""
+        prompt = f"""Estilo de fala: {personagem_dados.get('estilo fala')}
+        Estado emocional: {personagem_dados.get('estado_emocional')}
+        Exemplo: {personagem_dados.get('exemplo')}
+        Memórias:\n{memorias_texto}
+        Usuário: {mensagem.user_input}
+Personagem:"""
 
         openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         resposta = openai_client.chat.completions.create(
