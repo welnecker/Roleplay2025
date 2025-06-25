@@ -70,7 +70,12 @@ def carregar_memorias_do_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
         todas = aba.get_all_records()
-        return [m["conteudo"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
+        memorias_relevantes = [
+            f"({m['emoção'].strip()}) {m['conteudo'].strip()}"
+            for m in todas
+            if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()
+        ]
+        return memorias_relevantes
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
         return []
@@ -128,11 +133,11 @@ def chat_with_ai(message: Message):
     if message.primeira_interacao:
         sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
-    prompt_base = f"""Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
+    prompt_base = dados_pers.get("prompt_base") or f"Você é {nome_personagem}, uma personagem envolvente."
     prompt_memorias = "\n".join(memorias)
 
     mensagens = [
-        {"role": "system", "content": prompt_base + "\n" + prompt_memorias},
+        {"role": "system", "content": prompt_base + "\n\n" + prompt_memorias},
         {"role": "user", "content": message.user_input}
     ]
 
