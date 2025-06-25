@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Query
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
