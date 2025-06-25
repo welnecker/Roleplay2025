@@ -84,36 +84,20 @@ def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     except Exception as e:
         print(f"[ERRO ao salvar diálogo] {e}")
 
-def gerar_sinopse_a_partir_de_interacoes(nome_personagem: str) -> str:
+def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
         aba_dialogo = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
         dialogos = aba_dialogo.get_all_values()
         if len(dialogos) < 5:
             return ""
         ultimas_interacoes = dialogos[-5:]
-        texto_interacoes = "\n".join(f"{linha[1]}: {linha[2]}" for linha in ultimas_interacoes)
-
-        prompt_sinopse = f"""Faça uma breve sinopse narrando as últimas interações:\n{texto_interacoes}\nSinopse:"""
-        sinopse = call_ai([{"role": "user", "content": prompt_sinopse}], temperature=0.5, max_tokens=150)
-
-        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
-        nova_linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), sinopse, len(sinopse.split())]
-        aba_sinopse.append_row(nova_linha)
-
-        return sinopse
+        resumo = "No capítulo anterior...\n\n"
+        for linha in ultimas_interacoes:
+            if len(linha) >= 3:
+                resumo += f"[{linha[0]}] {linha[1]}: {linha[2]}\n"
+        return resumo.strip()
     except Exception as e:
-        print(f"[ERRO ao gerar sinopse] {e}")
-        return ""
-
-def carregar_ultima_sinopse(nome_personagem: str) -> str:
-    try:
-        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
-        sinopses = aba_sinopse.get_all_values()
-        if not sinopses:
-            return ""
-        return f"No capítulo anterior...{sinopses[-1][1]}\n\n"
-    except Exception as e:
-        print(f"[ERRO ao carregar sinopse] {e}")
+        print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
 
 @app.post("/chat/")
@@ -128,7 +112,7 @@ def chat_with_ai(message: Message):
 
     sinopse = ""
     if message.primeira_interacao:
-        sinopse = carregar_ultima_sinopse(nome_personagem)
+        sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
     prompt_base = f"""Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
 
