@@ -111,7 +111,7 @@ def carregar_ultima_sinopse(nome_personagem: str) -> str:
         sinopses = aba_sinopse.get_all_values()
         if not sinopses:
             return ""
-        return f"No capítulo anterior: {sinopses[-1][1]}\n\n"
+        return f"No capítulo anterior...{sinopses[-1][1]}\n\n"
     except Exception as e:
         print(f"[ERRO ao carregar sinopse] {e}")
         return ""
