@@ -84,24 +84,26 @@ def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     except Exception as e:
         print(f"[ERRO ao salvar diálogo] {e}")
 
-def gerar_sinopse(nome_personagem: str):
+def gerar_sinopse_a_partir_de_interacoes(nome_personagem: str) -> str:
     try:
         aba_dialogo = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
         dialogos = aba_dialogo.get_all_values()
         if len(dialogos) < 5:
-            return
+            return ""
         ultimas_interacoes = dialogos[-5:]
         texto_interacoes = "\n".join(f"{linha[1]}: {linha[2]}" for linha in ultimas_interacoes)
 
         prompt_sinopse = f"""Faça uma breve sinopse narrando as últimas interações:\n{texto_interacoes}\nSinopse:"""
-
         sinopse = call_ai([{"role": "user", "content": prompt_sinopse}], temperature=0.5, max_tokens=150)
 
         aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
         nova_linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), sinopse, len(sinopse.split())]
         aba_sinopse.append_row(nova_linha)
+
+        return sinopse
     except Exception as e:
         print(f"[ERRO ao gerar sinopse] {e}")
+        return ""
 
 def carregar_ultima_sinopse(nome_personagem: str) -> str:
     try:
@@ -123,7 +125,13 @@ def chat_with_ai(message: Message):
         return JSONResponse(status_code=404, content={"error": "Personagem não encontrado"})
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
-    sinopse = carregar_ultima_sinopse(nome_personagem) if message.primeira_interacao else ""
+
+    # Novo comportamento: gerar sinopse ao iniciar conversa
+    sinopse = ""
+    if message.primeira_interacao:
+        sinopse_gerada = gerar_sinopse_a_partir_de_interacoes(nome_personagem)
+        if sinopse_gerada:
+            sinopse = f"No capítulo anterior: {sinopse_gerada}\n\n"
 
     prompt_base = f"""Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
 
@@ -139,10 +147,7 @@ def chat_with_ai(message: Message):
     salvar_dialogo(nome_personagem, "user", message.user_input)
     salvar_dialogo(nome_personagem, "assistant", resposta_ia)
 
-    if len(gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem).get_all_values()) % 10 == 0:
-        gerar_sinopse(nome_personagem)
-
-    resposta_final = (sinopse if sinopse else "") + resposta_ia
+    resposta_final = sinopse + resposta_ia
 
     return {"response": resposta_final, "modo": message.modo}
 
