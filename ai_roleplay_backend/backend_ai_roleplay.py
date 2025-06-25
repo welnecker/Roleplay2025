@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 
-# === 1. Importações e setup ===
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,7 +11,7 @@ import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# === 2. Setup Google Sheets ===
+# === Setup Google Sheets ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
 creds_dict = json.loads(os.environ["GOOGLE_CREDS_JSON"])
 if "private_key" in creds_dict:
@@ -23,7 +22,7 @@ gsheets_client = gspread.authorize(creds)
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 
-# === 3. FastAPI setup ===
+# === FastAPI ===
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -54,11 +53,11 @@ def call_ai(mensagens, temperature=0.88, max_tokens=750):
         print(f"[ERRO no call_ai] {e}")
         return "Desculpe, houve um problema ao gerar a resposta."
 
-# === Funções relacionadas a personagens e memórias ===
+# === Funções auxiliares ===
 def carregar_dados_personagem(nome_personagem: str):
     try:
-        aba_pers = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = aba_pers.get_all_records()
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
         for p in dados:
             if p['nome'].strip().lower() == nome_personagem.strip().lower() and p.get("usar", "").strip().lower() == "sim":
                 return p
@@ -69,8 +68,8 @@ def carregar_dados_personagem(nome_personagem: str):
 
 def carregar_memorias_do_personagem(nome_personagem: str):
     try:
-        aba_memorias = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
-        todas = aba_memorias.get_all_records()
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
+        todas = aba.get_all_records()
         return [m["conteudo"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
@@ -78,27 +77,42 @@ def carregar_memorias_do_personagem(nome_personagem: str):
 
 def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     try:
-        aba_dialogo = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
         nova_linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), role, conteudo]
-        aba_dialogo.append_row(nova_linha)
+        aba.append_row(nova_linha)
     except Exception as e:
         print(f"[ERRO ao salvar diálogo] {e}")
 
 def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
-        aba_dialogo = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
-        dialogos = aba_dialogo.get_all_values()
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
+        dialogos = aba.get_all_values()
         if len(dialogos) < 5:
             return ""
+
         ultimas_interacoes = dialogos[-5:]
-        resumo = "No capítulo anterior...\n\n"
-        for linha in ultimas_interacoes:
-            if len(linha) >= 3:
-                resumo += f"[{linha[0]}] {linha[1]}: {linha[2]}\n"
-        return resumo.strip()
+        dialogos_formatados = "\n".join(
+            [f"{linha[1]}: {linha[2]}" for linha in ultimas_interacoes if len(linha) >= 3]
+        )
+
+        prompt = [
+            {
+                "role": "system",
+                "content": "Resuma os seguintes trechos de diálogo em forma de narrativa curta, estilo 'no capítulo anterior', como se fosse uma continuação envolvente de uma história.",
+            },
+            {
+                "role": "user",
+                "content": dialogos_formatados,
+            },
+        ]
+
+        resumo_narrativo = call_ai(prompt)
+        return f"No capítulo anterior...\n\n{resumo_narrativo}"
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
+
+# === Endpoints ===
 
 @app.post("/chat/")
 def chat_with_ai(message: Message):
@@ -115,7 +129,6 @@ def chat_with_ai(message: Message):
         sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
     prompt_base = f"""Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
-
     prompt_memorias = "\n".join(memorias)
 
     mensagens = [
