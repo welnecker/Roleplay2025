@@ -84,20 +84,16 @@ def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     except Exception as e:
         print(f"[ERRO ao salvar diálogo] {e}")
 
-def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
+def obter_sinopse_personagem(nome_personagem: str) -> str:
     try:
-        aba_dialogo = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
-        dialogos = aba_dialogo.get_all_values()
-        if len(dialogos) < 5:
+        nome_aba = f"{nome_personagem}_sinopse"
+        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_aba)
+        linhas = aba_sinopse.get_all_values()
+        if not linhas or len(linhas) < 2:
             return ""
-        ultimas_interacoes = dialogos[-5:]
-        resumo = "No capítulo anterior...\n\n"
-        for linha in ultimas_interacoes:
-            if len(linha) >= 3:
-                resumo += f"[{linha[0]}] {linha[1]}: {linha[2]}\n"
-        return resumo.strip()
+        return linhas[-1][1] if len(linhas[-1]) > 1 else ""
     except Exception as e:
-        print(f"[ERRO ao gerar resumo de interações] {e}")
+        print(f"[ERRO ao obter sinopse] {e}")
         return ""
 
 @app.post("/chat/")
@@ -112,7 +108,7 @@ def chat_with_ai(message: Message):
 
     sinopse = ""
     if message.primeira_interacao:
-        sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
+        sinopse = obter_sinopse_personagem(nome_personagem)
 
     prompt_base = f"""Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
 
