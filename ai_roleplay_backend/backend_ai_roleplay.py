@@ -52,17 +52,25 @@ def call_ai(mensagens, temperature=0.88, max_tokens=750):
 
 # === Funções relacionadas a personagens e memórias ===
 def carregar_dados_personagem(nome_personagem: str):
-    aba_pers = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-    dados = aba_pers.get_all_records()
-    for p in dados:
-        if p['nome'].strip().lower() == nome_personagem.strip().lower() and p.get("usar", "").strip().lower() == "sim":
-            return p
-    return {}
+    try:
+        aba_pers = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba_pers.get_all_records()
+        for p in dados:
+            if p['nome'].strip().lower() == nome_personagem.strip().lower() and p.get("usar", "").strip().lower() == "sim":
+                return p
+        return {}
+    except Exception as e:
+        print(f"[ERRO ao carregar dados do personagem] {e}")
+        return {}
 
 def carregar_memorias_do_personagem(nome_personagem: str):
-    aba_memorias = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
-    todas = aba_memorias.get_all_records()
-    return [m["conteudo"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
+    try:
+        aba_memorias = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
+        todas = aba_memorias.get_all_records()
+        return [m["conteudo"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
+    except Exception as e:
+        print(f"[ERRO ao carregar memórias] {e}")
+        return []
 
 def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     try:
@@ -106,6 +114,9 @@ def carregar_ultima_sinopse(nome_personagem: str) -> str:
 def chat_with_ai(message: Message):
     nome_personagem = message.personagem
     dados_pers = carregar_dados_personagem(nome_personagem)
+
+    if not dados_pers:
+        return JSONResponse(status_code=404, content={"error": "Personagem não encontrado"})
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = carregar_ultima_sinopse(nome_personagem) if message.primeira_interacao else ""
