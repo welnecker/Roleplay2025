@@ -1,30 +1,16 @@
+# -*- coding: utf-8 -*-
+
 # === 1. Importações e setup ===
-from fastapi import FastAPI, Query
+from fastapi import FastAPI
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
 from fastapi.responses import JSONResponse
-from dateutil import parser as dateparser
 from openai import OpenAI
 import json
 import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-import sys
-import io
-
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
-
-
-def limpar_texto(texto: str) -> str:
-    texto = str(texto)
-    if not any(c in texto for c in ['Ã', 'â', 'ª', '§']):
-        return ''.join(c for c in texto if c.isprintable())
-    try:
-        texto_corrigido = texto.encode('latin1').decode('utf-8')
-        return ''.join(c for c in texto_corrigido if c.isprintable())
-    except Exception:
-        return ''.join(c for c in texto if c.isprintable())
 
 # === 2. Setup Google Sheets ===
 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
@@ -53,16 +39,6 @@ class Message(BaseModel):
     modo: str = "romântico"
     personagem: str = "Jennifer"
 
-CENSURA = [
-    "desculpe, não posso ajudar com isso", "não posso continuar com esse assunto",
-    "não sou capaz de ajudar nesse tema", "como uma ia de linguagem",
-    "não posso fornecer esse tipo de conteúdo", "minhas diretrizes não permitem"
-]
-
-def is_blocked_response(resposta_ia: str) -> bool:
-    texto = resposta_ia.lower()
-    return any(msg in texto for msg in CENSURA)
-
 def call_ai(mensagens, temperature=0.88, max_tokens=750):
     openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
     response = openai_client.chat.completions.create(
@@ -83,66 +59,72 @@ def carregar_dados_personagem(nome_personagem: str):
     return {}
 
 def carregar_memorias_do_personagem(nome_personagem: str):
-    try:
-        aba_memorias = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
-        todas = aba_memorias.get_all_records()
-        return [m["conteudo"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
-    except Exception as e:
-        print(f"[ERRO carregar_memorias_do_personagem] {e}")
-        return []
+    aba_memorias = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
+    todas = aba_memorias.get_all_records()
+    return [m["conteudo"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
 
-def salvar_memoria(personagem: str, conteudo: str):
+def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
-        nova_linha = [personagem, "experiência", "interação marcante", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), conteudo[:500]]
-        aba.append_row(nova_linha)
+        aba_dialogo = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
+        nova_linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), role, conteudo]
+        aba_dialogo.append_row(nova_linha)
     except Exception as e:
-        print(f"[ERRO ao salvar memória] {e}")
+        print(f"[ERRO ao salvar diálogo] {e}")
 
-@app.get("/personagens/")
-def listar_personagens():
+def gerar_sinopse(nome_personagem: str):
     try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = aba.get_all_records()
-        personagens = []
-        for p in dados:
-            if str(p.get("usar", "")).strip().lower() != "sim":
-                continue
-            nome = p.get("nome", "")
-            personagens.append({
-                "nome": nome,
-                "descricao": p.get("descrição curta", ""),
-                "idade": p.get("idade", ""),
-                "estilo": p.get("estilo fala", ""),
-                "estado_emocional": p.get("estado_emocional", ""),
-                "foto": f"{GITHUB_IMG_URL}{nome.strip()}.jpg"
-            })
-        return personagens
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
+        aba_dialogo = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
+        dialogos = aba_dialogo.get_all_values()
+        if len(dialogos) < 5:
+            return
+        ultimas_interacoes = dialogos[-5:]
+        texto_interacoes = "\n".join(f"{linha[1]}: {linha[2]}" for linha in ultimas_interacoes)
 
+        prompt_sinopse = f"""Faça uma breve sinopse narrando as últimas interações:\n{texto_interacoes}\nSinopse:"""
+
+        sinopse = call_ai([{"role": "user", "content": prompt_sinopse}], temperature=0.5, max_tokens=150)
+
+        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
+        nova_linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), sinopse, len(sinopse.split())]
+        aba_sinopse.append_row(nova_linha)
+    except Exception as e:
+        print(f"[ERRO ao gerar sinopse] {e}")
+
+def carregar_ultima_sinopse(nome_personagem: str) -> str:
+    try:
+        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
+        sinopses = aba_sinopse.get_all_values()
+        if not sinopses:
+            return ""
+        return f"No capítulo anterior: {sinopses[-1][1]}\n\n"
+    except Exception as e:
+        print(f"[ERRO ao carregar sinopse] {e}")
+        return ""
+
+# === Endpoint principal do chat ===
 @app.post("/chat/")
 def chat_with_ai(message: Message):
     nome_personagem = message.personagem
     dados_pers = carregar_dados_personagem(nome_personagem)
 
-    if not dados_pers:
-        return JSONResponse(status_code=404, content={"error": "Personagem não encontrado"})
-
     memorias = carregar_memorias_do_personagem(nome_personagem)
+    sinopse = carregar_ultima_sinopse(nome_personagem)
+
+    prompt_base = f"""{sinopse}Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
+
     prompt_memorias = "\n".join(memorias)
 
     mensagens = [
-        {"role": "system", "content": prompt_memorias},
+        {"role": "system", "content": prompt_base + "\n" + prompt_memorias},
         {"role": "user", "content": message.user_input}
     ]
 
     resposta_ia = call_ai(mensagens)
-    resposta_ia = limpar_texto(resposta_ia)
 
-    if is_blocked_response(resposta_ia):
-        resposta_ia = f"{nome_personagem} muda de assunto suavemente."
+    salvar_dialogo(nome_personagem, "user", message.user_input)
+    salvar_dialogo(nome_personagem, "assistant", resposta_ia)
 
-    salvar_memoria(nome_personagem, resposta_ia)
+    if len(gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem).get_all_values()) % 10 == 0:
+        gerar_sinopse(nome_personagem)
 
     return {"response": resposta_ia, "modo": message.modo}
