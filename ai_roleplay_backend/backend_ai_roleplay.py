@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 
 # === 1. Importações e setup ===
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from datetime import datetime
@@ -38,6 +38,7 @@ class Message(BaseModel):
     score: int
     modo: str = "romântico"
     personagem: str = "Jennifer"
+    primeira_interacao: bool = False
 
 def call_ai(mensagens, temperature=0.88, max_tokens=750):
     openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
@@ -107,9 +108,9 @@ def chat_with_ai(message: Message):
     dados_pers = carregar_dados_personagem(nome_personagem)
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
-    sinopse = carregar_ultima_sinopse(nome_personagem)
+    sinopse = carregar_ultima_sinopse(nome_personagem) if message.primeira_interacao else ""
 
-    prompt_base = f"""{sinopse}Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
+    prompt_base = f"""Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
 
     prompt_memorias = "\n".join(memorias)
 
@@ -126,7 +127,9 @@ def chat_with_ai(message: Message):
     if len(gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem).get_all_values()) % 10 == 0:
         gerar_sinopse(nome_personagem)
 
-    return {"response": resposta_ia, "modo": message.modo}
+    resposta_final = (sinopse if sinopse else "") + resposta_ia
+
+    return {"response": resposta_final, "modo": message.modo}
 
 @app.get("/personagens/")
 def listar_personagens():
@@ -149,3 +152,6 @@ def listar_personagens():
         return personagens
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+    }
+  ]
+}
