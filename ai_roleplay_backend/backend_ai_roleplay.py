@@ -126,7 +126,6 @@ def chat_with_ai(message: Message):
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
 
-    # Corrigido: carregar última sinopse salva ao iniciar conversa
     sinopse = ""
     if message.primeira_interacao:
         sinopse = carregar_ultima_sinopse(nome_personagem)
@@ -145,9 +144,11 @@ def chat_with_ai(message: Message):
     salvar_dialogo(nome_personagem, "user", message.user_input)
     salvar_dialogo(nome_personagem, "assistant", resposta_ia)
 
-    resposta_final = sinopse + resposta_ia
-
-    return {"response": resposta_final, "modo": message.modo}
+    return {
+        "sinopse": sinopse,
+        "response": resposta_ia,
+        "modo": message.modo
+    }
 
 @app.get("/personagens/")
 def listar_personagens():
