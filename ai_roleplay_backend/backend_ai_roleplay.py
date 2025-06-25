@@ -85,9 +85,18 @@ def carregar_memorias_do_personagem(nome_personagem: str):
     try:
         aba_memorias = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
         todas = aba_memorias.get_all_records()
-        return [m["memoria"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
-    except Exception:
+        return [m["conteudo"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
+    except Exception as e:
+        print(f"[ERRO carregar_memorias_do_personagem] {e}")
         return []
+
+def salvar_memoria(personagem: str, conteudo: str):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
+        nova_linha = [personagem, "experiência", "interação marcante", datetime.now().strftime("%Y-%m-%d %H:%M:%S"), conteudo[:500]]
+        aba.append_row(nova_linha)
+    except Exception as e:
+        print(f"[ERRO ao salvar memória] {e}")
 
 @app.get("/personagens/")
 def listar_personagens():
