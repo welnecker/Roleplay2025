@@ -101,7 +101,6 @@ def carregar_ultima_sinopse(nome_personagem: str) -> str:
         print(f"[ERRO ao carregar sinopse] {e}")
         return ""
 
-# === Endpoint principal do chat ===
 @app.post("/chat/")
 def chat_with_ai(message: Message):
     nome_personagem = message.personagem
@@ -128,3 +127,25 @@ def chat_with_ai(message: Message):
         gerar_sinopse(nome_personagem)
 
     return {"response": resposta_ia, "modo": message.modo}
+
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        personagens = []
+        for p in dados:
+            if str(p.get("usar", "")).strip().lower() != "sim":
+                continue
+            nome = p.get("nome", "")
+            personagens.append({
+                "nome": nome,
+                "descricao": p.get("descrição curta", ""),
+                "idade": p.get("idade", ""),
+                "estilo": p.get("estilo fala", ""),
+                "estado_emocional": p.get("estado_emocional", ""),
+                "foto": f"{GITHUB_IMG_URL}{nome.strip()}.jpg"
+            })
+        return personagens
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
