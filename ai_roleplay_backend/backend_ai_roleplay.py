@@ -81,6 +81,14 @@ def carregar_dados_personagem(nome_personagem: str):
             return p
     return {}
 
+def carregar_memorias_do_personagem(nome_personagem: str):
+    try:
+        aba_memorias = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
+        todas = aba_memorias.get_all_records()
+        return [m["memoria"] for m in todas if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()]
+    except Exception:
+        return []
+
 @app.get("/personagens/")
 def listar_personagens():
     try:
