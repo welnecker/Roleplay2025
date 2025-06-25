@@ -41,14 +41,18 @@ class Message(BaseModel):
     primeira_interacao: bool = False
 
 def call_ai(mensagens, temperature=0.88, max_tokens=750):
-    openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-    response = openai_client.chat.completions.create(
-        model="gpt-4o",
-        messages=mensagens,
-        temperature=temperature,
-        max_tokens=max_tokens,
-    )
-    return response.choices[0].message.content.strip()
+    try:
+        openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+        response = openai_client.chat.completions.create(
+            model="gpt-4o",
+            messages=mensagens,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[ERRO no call_ai] {e}")
+        return "Desculpe, houve um problema ao gerar a resposta."
 
 # === Funções relacionadas a personagens e memórias ===
 def carregar_dados_personagem(nome_personagem: str):
@@ -163,6 +167,7 @@ def listar_personagens():
         return personagens
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-    }
-  ]
-}
+
+@app.get("/ping")
+def ping():
+    return {"status": "ok"}
