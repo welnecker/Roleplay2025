@@ -126,12 +126,10 @@ def chat_with_ai(message: Message):
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
 
-    # Novo comportamento: gerar sinopse ao iniciar conversa
+    # Corrigido: carregar última sinopse salva ao iniciar conversa
     sinopse = ""
     if message.primeira_interacao:
-        sinopse_gerada = gerar_sinopse_a_partir_de_interacoes(nome_personagem)
-        if sinopse_gerada:
-            sinopse = f"No capítulo anterior: {sinopse_gerada}\n\n"
+        sinopse = carregar_ultima_sinopse(nome_personagem)
 
     prompt_base = f"""Você é {nome_personagem}, personagem de {dados_pers.get('idade')} anos.\nDescrição: {dados_pers.get('descrição curta')}\nEstilo: {dados_pers.get('estilo fala')}\nEmocional: {dados_pers.get('estado_emocional')}"""
 
