@@ -172,3 +172,12 @@ def listar_personagens():
 @app.get("/ping")
 def ping():
     return {"status": "ok"}
+
+@app.get("/intro/")
+def get_intro(nome: str = Query(...), personagem: str = Query(...)):
+    try:
+        sinopse = gerar_resumo_ultimas_interacoes(personagem)
+        return {"resumo": sinopse}
+    except Exception as e:
+        print(f"[ERRO /intro/] {e}")
+        return {"resumo": ""}
