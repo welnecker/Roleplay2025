@@ -73,6 +73,7 @@ def call_ai(mensagens, temperature=0.88, max_tokens=750):
     )
     return response.choices[0].message.content.strip()
 
+# === Funções relacionadas a personagens e memórias ===
 def carregar_dados_personagem(nome_personagem: str):
     aba_pers = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
     dados = aba_pers.get_all_records()
@@ -119,3 +120,29 @@ def listar_personagens():
         return personagens
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.post("/chat/")
+def chat_with_ai(message: Message):
+    nome_personagem = message.personagem
+    dados_pers = carregar_dados_personagem(nome_personagem)
+
+    if not dados_pers:
+        return JSONResponse(status_code=404, content={"error": "Personagem não encontrado"})
+
+    memorias = carregar_memorias_do_personagem(nome_personagem)
+    prompt_memorias = "\n".join(memorias)
+
+    mensagens = [
+        {"role": "system", "content": prompt_memorias},
+        {"role": "user", "content": message.user_input}
+    ]
+
+    resposta_ia = call_ai(mensagens)
+    resposta_ia = limpar_texto(resposta_ia)
+
+    if is_blocked_response(resposta_ia):
+        resposta_ia = f"{nome_personagem} muda de assunto suavemente."
+
+    salvar_memoria(nome_personagem, resposta_ia)
+
+    return {"response": resposta_ia, "modo": message.modo}
