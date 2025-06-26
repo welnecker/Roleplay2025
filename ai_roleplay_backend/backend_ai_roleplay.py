@@ -32,6 +32,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# === Controle de introducao mostrada por personagem e usuario ===
+introducao_mostrada_por_usuario = {}
+
 class Message(BaseModel):
     user_input: str
     score: int
@@ -71,17 +74,15 @@ def carregar_memorias_do_personagem(nome_personagem: str):
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
         todas = aba.get_all_records()
 
-        # Filtra apenas memórias do personagem desejado
         filtradas = [
             m for m in todas
             if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()
         ]
 
-        # Ordena por data, se possível (caso a data esteja no formato reconhecível)
         try:
             filtradas.sort(key=lambda m: datetime.strptime(m.get("data", ""), "%Y-%m-%d"), reverse=True)
         except:
-            pass  # Se não conseguir ordenar por data, mantém a ordem original
+            pass
 
         memorias_relevantes = []
         for m in filtradas:
@@ -148,8 +149,6 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
 
-# === Endpoints ===
-
 @app.post("/chat/")
 def chat_with_ai(message: Message):
     nome_personagem = message.personagem
@@ -198,11 +197,18 @@ def chat_with_ai(message: Message):
     salvar_dialogo(nome_personagem, "user", message.user_input)
     salvar_dialogo(nome_personagem, "assistant", resposta_ia)
 
+    chave_usuario = f"{nome_personagem.lower()}_{dados_pers.get('user_name', 'user').lower()}"
+    mostrar_intro = False
+
+    if message.primeira_interacao and not introducao_mostrada_por_usuario.get(chave_usuario):
+        mostrar_intro = True
+        introducao_mostrada_por_usuario[chave_usuario] = True
+
     return {
         "sinopse": sinopse,
         "response": resposta_ia,
         "modo": message.modo,
-        "introducao": introducao if message.primeira_interacao else ""
+        "introducao": introducao if mostrar_intro else ""
     }
 
 @app.get("/personagens/")
