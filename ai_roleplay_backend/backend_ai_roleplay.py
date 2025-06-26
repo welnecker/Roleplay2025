@@ -152,6 +152,8 @@ def chat_with_ai(message: Message):
     if dados_pers.get("exemplo"):
         prompt_base += f"\nModelo de resposta esperado:\n{dados_pers['exemplo']}"
 
+    prompt_base += "\nFale com sensualidade autêntica e envolvente, sem parecer robótica. Use palavras evocativas, gestos e sensações físicas reais. Aja com naturalidade, não invente perguntas artificiais. Evite frases genéricas ou formais. Dê ênfase à atração, ao toque, à expressão corporal e ao jogo de olhares. Misture pensamentos entre *itálico* e falas com aspas."
+
     prompt_memorias = "\n".join(memorias)
 
     mensagens = [
