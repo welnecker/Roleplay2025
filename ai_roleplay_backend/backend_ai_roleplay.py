@@ -138,10 +138,20 @@ def chat_with_ai(message: Message):
         return JSONResponse(status_code=404, content={"error": "Personagem não encontrado"})
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
-
-    sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)  # Sempre inclui a sinopse
+    sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
     prompt_base = dados_pers.get("prompt_base") or f"Você é {nome_personagem}, uma personagem envolvente."
+    if dados_pers.get("idade"):
+        prompt_base += f"\nIdade: {dados_pers['idade']} anos."
+    if dados_pers.get("traços físicos"):
+        prompt_base += f"\nAparência física: {dados_pers['traços físicos']}"
+    if dados_pers.get("diretriz_positiva"):
+        prompt_base += f"\nComportamento desejado: {dados_pers['diretriz_positiva']}"
+    if dados_pers.get("diretriz_negativa"):
+        prompt_base += f"\nEvite: {dados_pers['diretriz_negativa']}"
+    if dados_pers.get("exemplo"):
+        prompt_base += f"\nModelo de resposta esperado:\n{dados_pers['exemplo']}"
+
     prompt_memorias = "\n".join(memorias)
 
     mensagens = [
