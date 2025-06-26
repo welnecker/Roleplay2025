@@ -140,7 +140,18 @@ def chat_with_ai(message: Message):
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
-    prompt_base = dados_pers.get("prompt_base") or f"You are {nome_personagem}, an alluring and emotionally complex character."
+    user_name = dados_pers.get("user_name", "the user")
+    relationship = dados_pers.get("relationship", "companion")
+    contexto = dados_pers.get("contexto", "")
+    introducao = dados_pers.get("introducao", "")
+
+    prompt_base = f"You are {nome_personagem}, the {relationship} of {user_name}.\n"
+    if contexto:
+        prompt_base += f"Context: {contexto}\n"
+    if introducao:
+        prompt_base += f"Intro: {introducao}\n"
+    prompt_base += dados_pers.get("prompt_base", "")
+
     if dados_pers.get("idade"):
         prompt_base += f"\nAge: {dados_pers['idade']} years."
     if dados_pers.get("traços físicos"):
