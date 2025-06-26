@@ -198,8 +198,6 @@ def listar_personagens():
                 "nome": nome,
                 "descricao": p.get("descrição curta", ""),
                 "idade": p.get("idade", ""),
-                "estilo": p.get("estilo fala", ""),
-                "estado_emocional": p.get("estado_emocional", ""),
                 "foto": f"{GITHUB_IMG_URL}{nome.strip()}.jpg"
             })
         return personagens
