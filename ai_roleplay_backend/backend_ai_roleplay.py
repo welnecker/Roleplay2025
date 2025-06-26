@@ -51,7 +51,7 @@ def call_ai(mensagens, temperature=0.88, max_tokens=750):
         return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"[ERRO no call_ai] {e}")
-        return "Desculpe, houve um problema ao gerar a resposta."
+        return "Sorry, there was a problem generating the response."
 
 # === Funções auxiliares ===
 def carregar_dados_personagem(nome_personagem: str):
@@ -112,7 +112,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         prompt = [
             {
                 "role": "system",
-                "content": "Resuma os seguintes trechos de diálogo em forma de narrativa curta, estilo 'no capítulo anterior', como se fosse uma continuação envolvente de uma história.",
+                "content": "Summarize the following dialogue excerpts into a short, engaging narrative in the style of 'previously on...', like a gripping story continuation.",
             },
             {
                 "role": "user",
@@ -122,7 +122,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
 
         resumo_narrativo = call_ai(prompt, max_tokens=280)
         salvar_sinopse(nome_personagem, resumo_narrativo)
-        return f"No capítulo anterior...\n\n{resumo_narrativo}"
+        return f"Previously on...\n\n{resumo_narrativo}"
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
@@ -135,24 +135,24 @@ def chat_with_ai(message: Message):
     dados_pers = carregar_dados_personagem(nome_personagem)
 
     if not dados_pers:
-        return JSONResponse(status_code=404, content={"error": "Personagem não encontrado"})
+        return JSONResponse(status_code=404, content={"error": "Character not found"})
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
-    prompt_base = dados_pers.get("prompt_base") or f"Você é {nome_personagem}, uma personagem envolvente."
+    prompt_base = dados_pers.get("prompt_base") or f"You are {nome_personagem}, an alluring and emotionally complex character."
     if dados_pers.get("idade"):
-        prompt_base += f"\nIdade: {dados_pers['idade']} anos."
+        prompt_base += f"\nAge: {dados_pers['idade']} years."
     if dados_pers.get("traços físicos"):
-        prompt_base += f"\nAparência física: {dados_pers['traços físicos']}"
+        prompt_base += f"\nPhysical traits: {dados_pers['traços físicos']}"
     if dados_pers.get("diretriz_positiva"):
-        prompt_base += f"\nComportamento desejado: {dados_pers['diretriz_positiva']}"
+        prompt_base += f"\nDesired behavior: {dados_pers['diretriz_positiva']}"
     if dados_pers.get("diretriz_negativa"):
-        prompt_base += f"\nEvite: {dados_pers['diretriz_negativa']}"
+        prompt_base += f"\nAvoid: {dados_pers['diretriz_negativa']}"
     if dados_pers.get("exemplo"):
-        prompt_base += f"\nModelo de resposta esperado:\n{dados_pers['exemplo']}"
+        prompt_base += f"\nExample of expected response:\n{dados_pers['exemplo']}"
 
-    prompt_base += "\nFale com sensualidade autêntica e envolvente, sem parecer robótica. Use palavras evocativas, gestos e sensações físicas reais. Aja com naturalidade, não invente perguntas artificiais. Evite frases genéricas ou formais. Dê ênfase à atração, ao toque, à expressão corporal e ao jogo de olhares. Misture pensamentos entre *itálico* e falas com aspas."
+    prompt_base += "\nSpeak in natural, sensual, and emotionally engaging English. Use evocative descriptions, physical gestures, and sensations. Take initiative — don’t ask repetitive or generic questions. Avoid robotic or reflective monologues. Show desire through action, body language, eye contact, and brief seductive dialogue. Blend thoughts in *italics* with spoken lines in quotation marks."
 
     prompt_memorias = "\n".join(memorias)
 
