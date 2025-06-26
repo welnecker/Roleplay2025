@@ -70,12 +70,33 @@ def carregar_memorias_do_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
         todas = aba.get_all_records()
-        memorias_relevantes = [
-            f"({m['emoção'].strip()}) {m['conteudo'].strip()}"
-            for m in todas
+
+        # Filtra apenas memórias do personagem desejado
+        filtradas = [
+            m for m in todas
             if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()
         ]
+
+        # Ordena por data, se possível (caso a data esteja no formato reconhecível)
+        try:
+            filtradas.sort(key=lambda m: datetime.strptime(m.get("data", ""), "%Y-%m-%d"), reverse=True)
+        except:
+            pass  # Se não conseguir ordenar por data, mantém a ordem original
+
+        memorias_relevantes = []
+        for m in filtradas:
+            tipo = m.get("tipo", "").strip()
+            titulo = m.get("titulo", "").strip()
+            data = m.get("data", "").strip()
+            emocao = m.get("emoção", "").strip()
+            relevancia = m.get("relevância", "").strip()
+            conteudo = m.get("conteudo", "").strip()
+
+            memoria = f"[{tipo}] ({emocao}) {titulo} - {data}: {conteudo} (Relevância: {relevancia})"
+            memorias_relevantes.append(memoria)
+
         return memorias_relevantes
+
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
         return []
