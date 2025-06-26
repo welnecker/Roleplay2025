@@ -88,6 +88,15 @@ def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     except Exception as e:
         print(f"[ERRO ao salvar diálogo] {e}")
 
+def salvar_sinopse(nome_personagem: str, texto: str):
+    try:
+        aba_nome = f"{nome_personagem}_sinopse"
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(aba_nome)
+        linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto)]
+        aba.append_row(linha)
+    except Exception as e:
+        print(f"[ERRO ao salvar sinopse] {e}")
+
 def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
@@ -112,6 +121,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         ]
 
         resumo_narrativo = call_ai(prompt)
+        salvar_sinopse(nome_personagem, resumo_narrativo)
         return f"No capítulo anterior...\n\n{resumo_narrativo}"
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
@@ -129,15 +139,13 @@ def chat_with_ai(message: Message):
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
 
-    sinopse = ""
-    if message.primeira_interacao:
-        sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
+    sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)  # Sempre inclui a sinopse
 
     prompt_base = dados_pers.get("prompt_base") or f"Você é {nome_personagem}, uma personagem envolvente."
     prompt_memorias = "\n".join(memorias)
 
     mensagens = [
-        {"role": "system", "content": prompt_base + "\n\n" + prompt_memorias},
+        {"role": "system", "content": prompt_base + "\n\n" + sinopse + "\n\n" + prompt_memorias},
         {"role": "user", "content": message.user_input}
     ]
 
