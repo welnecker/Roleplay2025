@@ -180,7 +180,8 @@ def chat_with_ai(message: Message):
     return {
         "sinopse": sinopse,
         "response": resposta_ia,
-        "modo": message.modo
+        "modo": message.modo,
+        "introducao": introducao if message.primeira_interacao else ""
     }
 
 @app.get("/personagens/")
