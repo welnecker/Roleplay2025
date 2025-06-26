@@ -120,7 +120,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
             },
         ]
 
-        resumo_narrativo = call_ai(prompt)
+        resumo_narrativo = call_ai(prompt, max_tokens=350)
         salvar_sinopse(nome_personagem, resumo_narrativo)
         return f"No capítulo anterior...\n\n{resumo_narrativo}"
     except Exception as e:
