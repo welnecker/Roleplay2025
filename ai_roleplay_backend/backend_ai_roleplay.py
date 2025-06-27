@@ -64,7 +64,7 @@ def carregar_dados_personagem(nome_personagem: str):
         dados = aba.get_all_records()
         if dados:
             for p in dados:
-                if p.get('nome','').strip().lower() == nome_personagem.strip().lower():
+                if p.get('nome','').strip().lower() == nome_personagem.strip().lower() and str(p.get("usar", "")).strip().lower() == "sim":
                     return p
         return {}
     except Exception as e:
@@ -135,4 +135,33 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
 
-# ... (demais rotas e funções continuam como estavam)
+@app.get("/intro/")
+def get_intro(nome: str = Query(...), personagem: str = Query(...)):
+    try:
+        dados_pers = carregar_dados_personagem(personagem)
+        introducao_texto = dados_pers.get("introducao", "").strip()
+        sinopse = gerar_resumo_ultimas_interacoes(personagem).strip()
+        resumo = sinopse if sinopse else introducao_texto
+        return {"resumo": resumo}
+    except Exception as e:
+        print(f"[ERRO /intro/] {e}")
+        return {"resumo": ""}
+
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        pers = []
+        for p in dados:
+            if str(p.get("usar", "")).strip().lower() != "sim":
+                continue
+            pers.append({
+                "nome": p.get("nome", ""),
+                "descricao": p.get("descrição curta", ""),
+                "idade": p.get("idade", ""),
+                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip()}.jpg"
+            })
+        return pers
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
