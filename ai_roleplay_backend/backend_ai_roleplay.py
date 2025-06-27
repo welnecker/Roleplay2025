@@ -150,6 +150,15 @@ def chat_with_ai(message: Message):
         )
     else:
         prompt_base = dados.get("prompt_base", "")
+        # Expandir dinamicamente com outras colunas
+        extras = []
+        for campo in ["descrição curta", "idade", "traços físicos", "diretriz_positiva", "diretriz_negativa", "relationship", "contexto"]:
+            valor = dados.get(campo, "").strip()
+            if valor:
+                extras.append(f"{campo.replace('_', ' ').capitalize()}: {valor}")
+        if extras:
+            prompt_base = f"Você é {dados.get('nome', '')}. " + " ".join(extras) + "\n\n" + prompt_base
+
         exemplo = dados.get("exemplo", "").strip()
         if exemplo:
             prompt_base += f"\n\nExemplo de como responder:\n\"{exemplo}\""
