@@ -42,6 +42,8 @@ class Message(BaseModel):
     modo: str = "default"
     primeira_interacao: bool = False
 
+contador_interacoes = {}
+
 def call_ai(mensagens, temperature=0.3, max_tokens=280):
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
@@ -108,8 +110,10 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         dialogos = aba.get_all_values()
         if len(dialogos) < 3:
             return ""
+
         ult = dialogos[-2:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
+
         prompt = [
             {"role": "system", "content": (
                 "Você é um narrador sensual e direto. Escreva em terceira pessoa, apenas com base no conteúdo fornecido nas interações. "
@@ -119,9 +123,17 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
+
         resumo = call_ai(prompt)
         if resumo and resumo.lower() != "resumo":
-            salvar_sinopse(nome_personagem, resumo)
+            if nome_personagem not in contador_interacoes:
+                contador_interacoes[nome_personagem] = 1
+            else:
+                contador_interacoes[nome_personagem] += 1
+
+            if contador_interacoes[nome_personagem] >= 3:
+                salvar_sinopse(nome_personagem, resumo)
+                contador_interacoes[nome_personagem] = 0
             return resumo
         else:
             print(f"[AVISO] Resumo inválido: '{resumo}'")
@@ -147,6 +159,17 @@ def chat_with_ai(message: Message):
         relacionamento = dados.get("relationship", "companheira")
 
         prompt_base = f"Você é {personagem}, {relacionamento} de {user_name}.\n"
+
+        caracteristicas = []
+        if dados.get("idade"):
+            caracteristicas.append(f"tem {dados['idade']} anos")
+        if dados.get("traços físicos"):
+            caracteristicas.append(dados["traços físicos"])
+        if dados.get("estilo fala"):
+            caracteristicas.append(f"fala de forma {dados['estilo fala']}")
+        if caracteristicas:
+            prompt_base += f"Você {', '.join(caracteristicas)}.\n"
+
         prompt_base += "Continue exatamente de onde a história parou. Não reinvente elementos ou reinicie a história.\n"
         prompt_base += "Nunca contradiga a sinopse fixa inicial, ela define o cenário, a ambientação e o relacionamento.\n"
         if sinopse:
