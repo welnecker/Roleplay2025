@@ -173,7 +173,8 @@ def chat_with_ai(message: Message):
             prompt_base += f"\n\nExemplo de como responder:\n\"{exemplo}\""
 
     prompt_base += (
-        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 2 parágrafos curtos de até 3 linhas cada."
+        "\n\nConclua sempre suas frases e evite cortes inesperados. Termine com um toque sensual, um convite ousado ou uma decisão tomada pela personagem. "
+        "Evite perguntas genéricas ou frases vazias. Use no máximo 2 parágrafos curtos com até 3 linhas cada."
     )
 
     user_input = message.user_input.strip()
