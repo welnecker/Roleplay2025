@@ -208,17 +208,20 @@ def chat_with_ai(message: Message):
         "Blend thoughts in *italics* with spoken lines in quotation marks."
     )
 
-    # ────────── AQUI ──────────
-    # style guidelines para parágrafos curtos e vocabulário simples
-    prompt_base += (
-        "\n\n**Style guidelines:**\n"
-        "- No more than **2 sentences** per paragraph.\n"
-        "- **Simple**, everyday words only (até nível de 8ª série).\n"
-        "- **No** long descriptions of surroundings.\n"
-        "- **Avoid** florid or high-level vocabulary.\n"
-        "- Be **direct** and **engaging**, sem monólogos extensos.\n"
-    )
-    # ─────────────────────────
+   # ────────── AQUI ──────────
+# style guidelines para respostas práticas, sem drama
+prompt_base += (
+    "\n\n**Style guidelines:**\n"
+    "- Máximo 2 frases por parágrafo.\n"
+    "- Vocabulário simples e cotidiano (até 8ª série).\n"
+    "- Sem descrições longas de ambiente.\n"
+    "- Proibido uso de metáforas, linguagem poética ou rebuscada.\n"
+    "- Não incluir pensamentos internos ou texto em *itálico*.\n"
+    "- Focar em ações objetivas e diálogo realista.\n"
+    "- Tom prático, autêntico e conversacional.\n"
+)
+# ─────────────────────────
+
 
     # monta lista de mensagens
     mensagens = []
@@ -249,8 +252,8 @@ def chat_with_ai(message: Message):
     # chamada a call_ai com limites de tokens e temperatura
     resposta_ia = call_ai(
         mensagens,
-        temperature=0.5,    # respostas mais focadas
-        max_tokens=150      # parágrafos curtos
+        temperature=0.3,    # respostas mais focadas
+        max_tokens=100      # parágrafos curtos
     )
     # ─────────────────────────
 
