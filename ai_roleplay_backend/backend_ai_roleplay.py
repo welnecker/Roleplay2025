@@ -94,7 +94,12 @@ def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
 def salvar_sinopse(nome_personagem: str, texto: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
-        aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto)])
+        valores = aba.get_all_values()
+        if not valores:
+            # Salvar a primeira sinopse como "fixa"
+            aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto), "fixa"])
+        else:
+            aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto)])
     except Exception as e:
         print(f"[ERRO ao salvar sinopse] {e}")
 
@@ -169,9 +174,9 @@ def get_intro(nome: str = Query(...), personagem: str = Query(...)):
         sinopses = aba_sinopse.get_all_values()
 
         if sinopses:
-            ultimo = sinopses[-1][1].strip()
-            if ultimo.lower() != "resumo":
-                return {"resumo": ultimo}
+            for s in reversed(sinopses):
+                if len(s) >= 2 and s[1].strip().lower() != "resumo":
+                    return {"resumo": s[1].strip()}
 
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         if len(aba_personagem.get_all_values()) < 3:
