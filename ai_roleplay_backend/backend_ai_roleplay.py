@@ -169,19 +169,13 @@ def ping():
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
-        # 1. Verifica sinopse salva
-        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
-        linhas_sinopse = aba_sinopse.get_all_values()
-        if linhas_sinopse and len(linhas_sinopse[-1]) >= 2:
-            return {"resumo": linhas_sinopse[-1][1].strip()}
-
-        # 2. Se aba do personagem estiver vazia, retorna introdução
+        # 1. Se aba do personagem estiver vazia, retorna introdução
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         if len(aba_personagem.get_all_values()) < 3:
             dados_pers = carregar_dados_personagem(personagem)
             return {"resumo": dados_pers.get("introducao", "").strip()}
 
-        # 3. Gera nova sinopse e salva
+        # 2. Sempre gera nova sinopse e salva
         resumo_gerado = gerar_resumo_ultimas_interacoes(personagem).strip()
         return {"resumo": resumo_gerado}
     except Exception as e:
