@@ -139,22 +139,46 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
             return ""
         ult = dialogos[-5:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
-        prompt = [
-            {
-                "role": "system",
-                "content": (
-                    "Você é um assistente que resume excertos de diálogos em um texto curto "
-                    "e envolvente no estilo de 'Anteriormente...'. Responda sempre em português."
-                )
-            },
-            {
-                "role": "user",
-                "content": (
-                    "Por favor, gere uma sinopse em português dos seguintes diálogos:\n\n"
-                    f"{txt}"
-                )
-            }
-        ]
+         def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
+     try:
+         …
+         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
+-        prompt = [
+-            {
+-                "role": "system",
+-                "content": (
+-                    "Você é um assistente que resume excertos de diálogos em um texto curto "
+-                    "e envolvente no estilo de 'Anteriormente...'. Responda sempre em português."
+-                )
+-            },
+-            {
+-                "role": "user",
+-                "content": (
+-                    "Por favor, gere uma sinopse em português dos seguintes diálogos:\n\n"
+-                    f"{txt}"
+-                )
+-            }
+-        ]
++        prompt = [
++            {"role": "system", "content":
++                "Você é um narrador cinematográfico: escreva em terceira pessoa, "
++                "com descrições sensoriais vívidas (visão, tato, som), metáforas e emoções. "
++                "Revele pensamentos internos em itálico. Sempre em português."
++            },
++            {"role": "assistant", "content":
++                "Exemplo:\n"
++                "A tempestade tamborilava sobre o capacete de Regina, cada gota um sussurro gelado. "
++                "Quando avistou o letreiro em neon, um arrepio atravessou sua espinha — não só pelo frio, "
++                "mas pelas memórias que vieram com o motor desligando."
++            },
++            {"role": "user", "content":
++                f"Agora, usando esse estilo, gere uma sequência envolvente a partir destes excertos:\n\n{txt}"
++            }
++        ]
+         resumo = call_ai(prompt, max_tokens=350, temperature=0.8, top_p=0.9)
+         salvar_sinopse(nome_personagem, resumo)
+-        return f"Anteriormente...\n\n{resumo}"
++        return resumo
         resumo = call_ai(prompt, max_tokens=280)
         salvar_sinopse(nome_personagem, resumo)
         return f"Anteriormente...\n\n{resumo}"
