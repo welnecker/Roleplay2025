@@ -114,10 +114,10 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
         prompt = [
             {"role": "system", "content": (
-                "Você é um narrador sensual e direto: escreva em terceira pessoa, com foco em ações, desejos, decisões e pensamentos íntimos da personagem. "
-                "Evite descrições longas do ambiente ou floreios desnecessários. A sensualidade deve estar presente em todo o texto. "
-                "Mostre o desejo da personagem de forma explícita e elegante. Sempre em português. "
-                "Use no máximo 2 parágrafos curtos, com no máximo 2 frases cada. Evite blocos longos."
+                "Você é um narrador sensual e direto. Escreva em terceira pessoa, apenas com base no conteúdo fornecido nas interações. "
+                "Não invente lugares, ações ou eventos não mencionados. Concentre-se em resumir o que foi dito, destacando emoções, decisões e interações reais. "
+                "Evite descrições de ambiente. Foque na conexão entre os personagens. "
+                "Use no máximo 2 parágrafos curtos, com até 2 frases cada. Mantenha o texto sensual, direto e objetivo, em português."
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
