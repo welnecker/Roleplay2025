@@ -46,7 +46,6 @@ class Message(BaseModel):
     modo: str = "default"
     primeira_interacao: bool = False
 
-
 def call_ai(mensagens, temperature=0.8, max_tokens=350):
     try:
         client = OpenAI(api_key=environment.get("OPENAI_API_KEY", ""))
@@ -61,7 +60,6 @@ def call_ai(mensagens, temperature=0.8, max_tokens=350):
         print(f"[ERRO no call_ai] {e}")
         return ""
 
-
 def carregar_dados_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
@@ -75,7 +73,6 @@ def carregar_dados_personagem(nome_personagem: str):
         print(f"[ERRO ao carregar dados do personagem] {e}")
         return {}
 
-
 def carregar_memorias_do_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
@@ -87,7 +84,6 @@ def carregar_memorias_do_personagem(nome_personagem: str):
         print(f"[ERRO ao carregar memórias] {e}")
         return []
 
-
 def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
@@ -96,7 +92,6 @@ def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     except Exception as e:
         print(f"[ERRO ao salvar diálogo] {e}")
 
-
 def salvar_sinopse(nome_personagem: str, texto: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
@@ -104,32 +99,25 @@ def salvar_sinopse(nome_personagem: str, texto: str):
     except Exception as e:
         print(f"[ERRO ao salvar sinopse] {e}")
 
-
 def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
         dialogos = aba.get_all_values()
-        # Usar últimas 3 linhas para sinopse
         if len(dialogos) < 3:
             return ""
-        ult = dialogos[-3:]
+        ult = dialogos[-2:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
         prompt = [
             {"role": "system", "content": (
                 "Você é um narrador cinematográfico: escreva em terceira pessoa, com descrições sensoriais vívidas, "
                 "metáforas e emoções. Sempre em português. Conclua suas frases sem cortes abruptos. "
-                "Limite a resposta a no máximo dois parágrafos."
+                "Limite a resposta a no máximo dois parágrafos curtos e objetivos."
             )},
-            {"role": "assistant", "content": (
-                "Exemplo:\n"
-                "A tempestade tamborilava sobre o capacete de Regina, cada gota um sussurro gelado. "
-                "Quando avistou o letreiro em neon, um arrepio atravessou sua espinha — não só pelo frio, "
-                "mas pelas memórias que vieram com o motor desligando."
-            )},
-            {"role": "user", "content": f"Agora, usando esse estilo, gere uma narrativa completa destes excertos:\n\n{txt}"}
+            {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
         resumo = call_ai(prompt)
-        salvar_sinopse(nome_personagem, resumo)
+        if resumo.strip():
+            salvar_sinopse(nome_personagem, resumo)
         return resumo
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
@@ -181,22 +169,21 @@ def ping():
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
-        dados_pers = carregar_dados_personagem(personagem)
-        introducao_texto = dados_pers.get("introducao", "").strip()
-        # tenta retornar última sinopse salva
-        try:
-            aba_sin = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
-            rows = aba_sin.get_all_values()
-            if rows and len(rows[-1]) >= 2:
-                return {"resumo": rows[-1][1]}
-        except Exception:
-            pass
-        # gera sinopse a partir dos últimos diálogos
+        # 1. Verifica sinopse salva
+        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
+        linhas_sinopse = aba_sinopse.get_all_values()
+        if linhas_sinopse and len(linhas_sinopse[-1]) >= 2:
+            return {"resumo": linhas_sinopse[-1][1].strip()}
+
+        # 2. Se aba do personagem estiver vazia, retorna introdução
+        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        if len(aba_personagem.get_all_values()) < 3:
+            dados_pers = carregar_dados_personagem(personagem)
+            return {"resumo": dados_pers.get("introducao", "").strip()}
+
+        # 3. Gera nova sinopse e salva
         resumo_gerado = gerar_resumo_ultimas_interacoes(personagem).strip()
-        if resumo_gerado:
-            return {"resumo": resumo_gerado}
-        # fallback para introdução
-        return {"resumo": introducao_texto}
+        return {"resumo": resumo_gerado}
     except Exception as e:
         print(f"[ERRO /intro/] {e}")
         return {"resumo": ""}
