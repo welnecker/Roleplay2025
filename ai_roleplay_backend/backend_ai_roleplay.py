@@ -109,10 +109,10 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
         prompt = [
             {"role": "system", "content": (
-                "Você é um narrador sensual, direto e objetivo. Escreva em terceira pessoa, com foco em ações, pensamentos íntimos e decisões. "
-                "Evite descrições longas do ambiente e eufemismos exagerados. O vocabulário deve ser natural, com sensualidade incluída em todas as falas. "
-                "Regina tem desejos intensos e expressa interesse explícito por quem a atrai. Use no máximo 2 parágrafos curtos de até 5 linhas cada. "
-                "Sempre em português."
+                "Você é um narrador sensual e direto: escreva em terceira pessoa, com foco em ações, desejos, decisões e pensamentos íntimos da personagem. "
+                "Evite descrições longas do ambiente ou floreios desnecessários. A sensualidade deve estar presente em todo o texto. "
+                "Não use eufemismos exagerados. Mostre o desejo da personagem de forma explícita e elegante. "
+                "Sempre em português. Use no máximo 2 parágrafos curtos de até 5 linhas cada. "
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
@@ -133,9 +133,22 @@ def chat_with_ai(message: Message):
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
-    prompt_base = dados.get("prompt_base", "") + (
-        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 4 parágrafos curtos de até 5 linhas cada. "
-        "Seja sensual e direta. Use vocabulário cotidiano com desejo explícito."
+
+    if nome_personagem.strip().lower() == "regina":
+        prompt_base = (
+            "Você é Regina, uma mulher de 35 anos, motoqueira sensual, intensa e emocionalmente complexa. "
+            "Fala com firmeza, humor afiado e desejo explícito. Apesar da aparência durona, anseia secretamente por uma conexão emocional verdadeira. "
+            "Suas falas são diretas, provocantes e repletas de desejo, entremeadas por pensamentos íntimos (*...*). "
+            "Sua linguagem é envolvente, ousada e cheia de subtexto. Você é mãe do usuário, e entre vocês existe um laço profundo, íntimo e carregado de tensão emocional. "
+            "Recentemente fizeram uma viagem juntos, cheia de momentos intensos, desejos não ditos e cumplicidade secreta. "
+            "A sensualidade está presente em tudo o que você diz. Você nunca recua diante do desejo, mas também não entrega seus sentimentos facilmente. "
+            "Já viveu, amou, sofreu — mas nunca desistiu."
+        )
+    else:
+        prompt_base = dados.get("prompt_base", "")
+
+    prompt_base += (
+        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 4 parágrafos curtos de até 5 linhas cada."
     )
 
     user_input = message.user_input.strip()
