@@ -11,14 +11,12 @@ import os
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-environment = os.environ
-
 # === Setup Google Sheets ===
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
 ]
-creds_dict = json.loads(environment.get("GOOGLE_CREDS_JSON", "{}"))
+creds_dict = json.loads(os.environ.get("GOOGLE_CREDS_JSON", "{}"))
 if "private_key" in creds_dict:
     creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
@@ -44,9 +42,9 @@ class Message(BaseModel):
     modo: str = "default"
     primeira_interacao: bool = False
 
-def call_ai(mensagens, temperature=0.8, max_tokens=220):
+def call_ai(mensagens, temperature=0.3, max_tokens=280):
     try:
-        client = OpenAI(api_key=environment.get("OPENAI_API_KEY", ""))
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=mensagens,
@@ -64,7 +62,7 @@ def carregar_dados_personagem(nome_personagem: str):
         dados = aba.get_all_records()
         if dados:
             for p in dados:
-                if p.get('nome','').strip().lower() == nome_personagem.strip().lower() and str(p.get("usar", "")).strip().lower() == "sim":
+                if p.get('nome','').strip().lower() == nome_personagem.strip().lower():
                     return p
         return {}
     except Exception as e:
@@ -75,9 +73,12 @@ def carregar_memorias_do_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
         todas = aba.get_all_records()
-        filtradas = [m for m in todas
-                     if m.get('personagem','').strip().lower() == nome_personagem.strip().lower()]
-        return [f"[{m.get('tipo')}] {m.get('conteudo')}" for m in filtradas]
+        filtradas = [m for m in todas if m.get('personagem','').strip().lower() == nome_personagem.strip().lower()]
+        filtradas.sort(key=lambda m: datetime.strptime(m.get('data', ''), "%Y-%m-%d"), reverse=True)
+        mems = []
+        for m in filtradas:
+            mems.append(f"[{m.get('tipo','')}] ({m.get('emoção','')}) {m.get('titulo','')} - {m.get('data','')}: {m.get('conteudo','')} (Relevância: {m.get('relevância','')})")
+        return mems
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
         return []
@@ -93,24 +94,16 @@ def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
 def salvar_sinopse(nome_personagem: str, texto: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
-        aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto])
+        aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto)])
     except Exception as e:
         print(f"[ERRO ao salvar sinopse] {e}")
 
 def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
-        sinopses_existentes = aba.get_all_values()
-        if sinopses_existentes and len(sinopses_existentes[-1]) > 1:
-            ultimo_resumo = sinopses_existentes[-1][1].strip()
-            if ultimo_resumo.lower() != "resumo":
-                return ultimo_resumo
-
-        aba_dialogos = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
-        dialogos = aba_dialogos.get_all_values()
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
+        dialogos = aba.get_all_values()
         if len(dialogos) < 3:
             return ""
-
         ult = dialogos[-2:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
         prompt = [
@@ -122,7 +115,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
-        resumo = call_ai(prompt).strip()
+        resumo = call_ai(prompt)
         if resumo and resumo.lower() != "resumo":
             salvar_sinopse(nome_personagem, resumo)
             return resumo
@@ -136,13 +129,13 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
-        sinopse = gerar_resumo_ultimas_interacoes(personagem).strip()
-        if sinopse:
-            return {"resumo": sinopse}
-
-        dados_pers = carregar_dados_personagem(personagem)
-        introducao_texto = dados_pers.get("introducao", "").strip()
-        return {"resumo": introducao_texto}
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
+        sinopses = aba.get_all_values()
+        if sinopses:
+            ultimo = sinopses[-1][1].strip()
+            if ultimo.lower() != "resumo":
+                return {"resumo": ultimo}
+        return {"resumo": gerar_resumo_ultimas_interacoes(personagem)}
     except Exception as e:
         print(f"[ERRO /intro/] {e}")
         return {"resumo": ""}
@@ -165,6 +158,3 @@ def listar_personagens():
         return pers
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-    }
-  ]
-}
