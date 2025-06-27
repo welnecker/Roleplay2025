@@ -209,23 +209,33 @@ def chat_with_ai(message: Message):
 
     mensagens = []
     ui = message.user_input.strip()
+    
     # Detecção de cena entre aspas
     if ui.startswith('"') and ui.endswith('"'):
-        cena = ui.strip('"').strip()
+        # retira apenas a primeira e última aspa
+        cena = ui[1:-1].strip()
         mensagens.append({
             "role": "system",
             "content": (
-                f"You are {nome_personagem}. The text between quotes is a SCENE DIRECTION: \"{cena}\". "
+                f"You are {nome_personagem}. "
+                f"The text between quotes is a SCENE DIRECTION: \"{cena}\". "
                 "Respond in short, objective sentences, without florid language."
             )
         })
+        # envia como user apenas o comando, sem as aspas
+        mensagens.append({"role": "user", "content": cena})
     else:
+        # prompt padrão seguido da fala do usuário
         mensagens.append({
             "role": "system",
-            "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)
-        })
+            "content": prompt_base + "
 
-    mensagens.append({"role": "user", "content": ui})
+" + sinopse + "
+
+" + "
+".join(memorias)
+        })
+        mensagens.append({"role": "user", "content": ui})
 
     resposta = call_ai(mensagens)
 
