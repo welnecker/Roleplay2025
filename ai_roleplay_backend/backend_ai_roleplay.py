@@ -109,9 +109,10 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
         dialogos = aba.get_all_values()
-        if len(dialogos) < 5:
+        # Usar últimas 3 linhas para sinopse
+        if len(dialogos) < 3:
             return ""
-        ult = dialogos[-5:]
+        ult = dialogos[-3:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
         prompt = [
             {"role": "system", "content": (
