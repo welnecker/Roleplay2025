@@ -150,6 +150,9 @@ def chat_with_ai(message: Message):
         )
     else:
         prompt_base = dados.get("prompt_base", "")
+        exemplo = dados.get("exemplo", "").strip()
+        if exemplo:
+            prompt_base += f"\n\nExemplo de como responder:\n\"{exemplo}\""
 
     prompt_base += (
         "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 3 parágrafos curtos de até 3 linhas cada."
