@@ -205,6 +205,17 @@ def chat_with_ai(message: Message):
         "Blend thoughts in *italics* with spoken lines in quotation marks."
     )
 
+        # ——— style guidelines para parágrafos curtos e vocabulário simples ———
+    prompt_base += (
+        "\n\n**Style guidelines:**\n"
+        "- No more than **2 sentences** per paragraph.\n"
+        "- **Simple**, everyday words only (até nível de 8ª série).\n"
+        "- **No** long descriptions of surroundings.\n"
+        "- **Avoid** florid or high-level vocabulary.\n"
+        "- Be **direct** and **engaging**, sem monólogos extensos.\n"
+    )
+
+
     # Monta lista de mensagens para o call_ai
     mensagens = []
 
@@ -232,7 +243,12 @@ def chat_with_ai(message: Message):
     mensagens.append({"role": "user", "content": user_input})
 
     # Chama a IA
-    resposta_ia = call_ai(mensagens)
+       resposta_ia = call_ai(
+        mensagens,
+        temperature=0.5,    # respostas mais focadas
+        max_tokens=150      # máximo ~150 tokens para parágrafos curtos
+    )
+
 
     # Salva histórico
     salvar_dialogo(nome_personagem, "user", message.user_input)
