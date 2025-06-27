@@ -149,6 +149,22 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
 
+from fastapi import FastAPI, Query
+from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+
+app = FastAPI()
+
+# ... seus imports de carregar_dados_personagem, gerar_resumo_ultimas_interacoes, call_ai etc.
+
+introducao_mostrada_por_usuario = {}
+
+class Message(BaseModel):
+    personagem: str
+    user_input: str
+    modo: str = "default"
+    primeira_interacao: bool = False
+
 @app.post("/chat/")
 def chat_with_ai(message: Message):
     nome_personagem = message.personagem
@@ -157,13 +173,15 @@ def chat_with_ai(message: Message):
     if not dados_pers:
         return JSONResponse(status_code=404, content={"error": "Character not found"})
 
+    # Carrega memórias e sinopse
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
-    user_name = dados_pers.get("user_name", "the user")
-    relationship = dados_pers.get("relationship", "companion")
-    contexto = dados_pers.get("contexto", "")
-    introducao = dados_pers.get("introducao", "")
+    # Base do prompt (seu código original)
+    user_name   = dados_pers.get("user_name", "the user")
+    relationship= dados_pers.get("relationship", "companion")
+    contexto    = dados_pers.get("contexto", "")
+    introducao  = dados_pers.get("introducao", "")
 
     prompt_base = f"You are {nome_personagem}, the {relationship} of {user_name}.\n"
     if contexto:
@@ -172,34 +190,57 @@ def chat_with_ai(message: Message):
         prompt_base += f"Intro: {introducao}\n"
     prompt_base += dados_pers.get("prompt_base", "")
 
-    if dados_pers.get("idade"):
-        prompt_base += f"\nAge: {dados_pers['idade']} years."
-    if dados_pers.get("traços físicos"):
-        prompt_base += f"\nPhysical traits: {dados_pers['traços físicos']}"
-    if dados_pers.get("diretriz_positiva"):
-        prompt_base += f"\nDesired behavior: {dados_pers['diretriz_positiva']}"
-    if dados_pers.get("diretriz_negativa"):
-        prompt_base += f"\nAvoid: {dados_pers['diretriz_negativa']}"
-    if dados_pers.get("exemplo"):
-        prompt_base += f"\nExample of expected response:\n{dados_pers['exemplo']}"
+    for field, label in [("idade","Age"),("traços físicos","Physical traits"),
+                         ("diretriz_positiva","Desired behavior"),
+                         ("diretriz_negativa","Avoid"),("exemplo","Example of expected response")]:
+        if dados_pers.get(field):
+            prompt_base += f"\n{label}: {dados_pers[field]}"
 
-    prompt_base += "\nSpeak in natural, sensual, and emotionally engaging English. Use evocative descriptions, physical gestures, and sensations. Take initiative — don’t ask repetitive or generic questions. Avoid robotic or reflective monologues. Show desire through action, body language, eye contact, and brief seductive dialogue. Blend thoughts in *italics* with spoken lines in quotation marks."
+    prompt_base += (
+        "\nSpeak in natural, sensual, and emotionally engaging English. "
+        "Use evocative descriptions, physical gestures, and sensations. "
+        "Take initiative — don’t ask repetitive or generic questions. "
+        "Avoid robotic or reflective monologues. "
+        "Show desire through action, body language, eye contact, and brief seductive dialogue. "
+        "Blend thoughts in *italics* with spoken lines in quotation marks."
+    )
 
-    prompt_memorias = "\n".join(memorias)
+    # Monta lista de mensagens para o call_ai
+    mensagens = []
 
-    mensagens = [
-        {"role": "system", "content": prompt_base + "\n\n" + sinopse + "\n\n" + prompt_memorias},
-        {"role": "user", "content": message.user_input}
-    ]
+    user_input = message.user_input.strip()
 
+    # Se houver aspas no início e fim, trata como DIREÇÃO DE CENA
+    if user_input.startswith('"') and user_input.endswith('"'):
+        cena = user_input.strip('"').strip()
+        mensagens.append({
+            "role": "system",
+            "content": (
+                f"You are {nome_personagem}. "
+                f"The text between quotes is a SCENE DIRECTION: \"{cena}\". "
+                "Respond in short, objective sentences, without florid language."
+            )
+        })
+    else:
+        # system prompt padrão
+        mensagens.append({
+            "role": "system",
+            "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)
+        })
+    
+    # Adiciona a fala do usuário
+    mensagens.append({"role": "user", "content": user_input})
+
+    # Chama a IA
     resposta_ia = call_ai(mensagens)
 
+    # Salva histórico
     salvar_dialogo(nome_personagem, "user", message.user_input)
     salvar_dialogo(nome_personagem, "assistant", resposta_ia)
 
-    chave_usuario = f"{nome_personagem.lower()}_{dados_pers.get('user_name', 'user').lower()}"
+    # Lógica de mostrar introdução apenas na primeira interação
+    chave_usuario = f"{nome_personagem.lower()}_{user_name.lower()}"
     mostrar_intro = False
-
     if message.primeira_interacao and not introducao_mostrada_por_usuario.get(chave_usuario):
         mostrar_intro = True
         introducao_mostrada_por_usuario[chave_usuario] = True
