@@ -35,7 +35,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Controle de introducao mostrada por personagem e usuario
 introducao_mostrada_por_usuario = {}
 
 class Message(BaseModel):
@@ -65,7 +64,6 @@ def carregar_dados_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
-        # Mostrar colunas para debug
         if dados:
             print("[DEBUG] Colunas em 'personagens':", dados[0].keys())
         encontrado_ignorar = None
@@ -212,7 +210,6 @@ def chat_with_ai(message: Message):
     
     # Detecção de cena entre aspas
     if ui.startswith('"') and ui.endswith('"'):
-        # retira apenas a primeira e última aspa
         cena = ui[1:-1].strip()
         mensagens.append({
             "role": "system",
@@ -222,18 +219,12 @@ def chat_with_ai(message: Message):
                 "Respond in short, objective sentences, without florid language."
             )
         })
-        # envia como user apenas o comando, sem as aspas
         mensagens.append({"role": "user", "content": cena})
     else:
         # prompt padrão seguido da fala do usuário
         mensagens.append({
             "role": "system",
-            "content": prompt_base + "
-
-" + sinopse + "
-
-" + "
-".join(memorias)
+            "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)
         })
         mensagens.append({"role": "user", "content": ui})
 
