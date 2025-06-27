@@ -238,8 +238,18 @@ def ping():
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
-        sinopse = gerar_resumo_ultimas_interacoes(personagem)
-        return {"resumo": sinopse}
+        # 1) Carrega o texto de introdução que você definiu na aba "personagens"
+        dados_pers = carregar_dados_personagem(personagem)
+        introducao_texto = dados_pers.get("introducao", "").strip()
+
+        # 2) Tenta gerar a sinopse das últimas interações
+        sinopse = gerar_resumo_ultimas_interacoes(personagem).strip()
+
+        # 3) Se não houver sinopse, use a introdução; caso contrário, preferia a sinopse
+        resumo = sinopse if sinopse else introducao_texto
+
+        return {"resumo": resumo}
     except Exception as e:
         print(f"[ERRO /intro/] {e}")
         return {"resumo": ""}
+
