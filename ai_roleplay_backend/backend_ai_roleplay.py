@@ -165,12 +165,22 @@ def chat_with_ai(message: Message):
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
-        sinopses = aba.get_all_values()
+        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
+        sinopses = aba_sinopse.get_all_values()
+
         if sinopses:
             ultimo = sinopses[-1][1].strip()
             if ultimo.lower() != "resumo":
                 return {"resumo": ultimo}
+
+        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        if len(aba_personagem.get_all_values()) < 3:
+            dados = carregar_dados_personagem(personagem)
+            intro = dados.get("introducao", "").strip()
+            if intro:
+                salvar_sinopse(personagem, intro)
+                return {"resumo": intro}
+
         return {"resumo": gerar_resumo_ultimas_interacoes(personagem)}
     except Exception as e:
         print(f"[ERRO /intro/] {e}")
