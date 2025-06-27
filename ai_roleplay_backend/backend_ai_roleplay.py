@@ -8,9 +8,10 @@ from datetime import datetime
 from openai import OpenAI
 import json
 import os
-environment = os.environ
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+
+environment = os.environ
 
 # === Setup Google Sheets ===
 scope = [
@@ -23,10 +24,11 @@ if "private_key" in creds_dict:
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gsheets_client = gspread.authorize(creds)
 
-PLANILHA_ID = "1qFTGu-NKLt-4q5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
+# ID correto da planilha
+PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 
-# === FastAPI ===
+# === FastAPI setup ===
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -64,9 +66,10 @@ def carregar_dados_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
-        for p in dados:
-            if p.get('nome', '').strip().lower() == nome_personagem.strip().lower():
-                return p
+        if dados:
+            for p in dados:
+                if p.get('nome','').strip().lower() == nome_personagem.strip().lower():
+                    return p
         return {}
     except Exception as e:
         print(f"[ERRO ao carregar dados do personagem] {e}")
@@ -77,7 +80,8 @@ def carregar_memorias_do_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
         todas = aba.get_all_records()
-        filtradas = [m for m in todas if m.get('personagem','').strip().lower() == nome_personagem.strip().lower()]
+        filtradas = [m for m in todas
+                     if m.get('personagem','').strip().lower() == nome_personagem.strip().lower()]
         return [f"[{m.get('tipo')}] {m.get('conteudo')}" for m in filtradas]
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
