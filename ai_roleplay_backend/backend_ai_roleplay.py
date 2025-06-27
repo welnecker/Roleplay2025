@@ -144,7 +144,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
                 "role": "system",
                 "content": (
                     "Você é um assistente que resume excertos de diálogos em um texto curto "
-                    "e envolvente no estilo de 'anteriormente em...'. Responda sempre em português."
+                    "e envolvente no estilo de 'Anteriormente...'. Responda sempre em português."
                 )
             },
             {
@@ -157,10 +157,11 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         ]
         resumo = call_ai(prompt, max_tokens=280)
         salvar_sinopse(nome_personagem, resumo)
-        return f"Anteriormente em...\n\n{resumo}"
+        return f"Anteriormente...\n\n{resumo}"
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
+
 
 @app.post("/chat/")
 def chat_with_ai(message: Message):
