@@ -117,7 +117,8 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         prompt = [
             {"role": "system", "content": (
                 "Você é um narrador cinematográfico: escreva em terceira pessoa, com descrições sensoriais vívidas, "
-                "metáforas e emoções. Sempre em português. Conclua suas frases sem cortes abruptos."
+                "metáforas e emoções. Sempre em português. Conclua suas frases sem cortes abruptos. "
+                "Limite a resposta a no máximo dois parágrafos."
             )},
             {"role": "assistant", "content": (
                 "Exemplo:\n"
