@@ -112,7 +112,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
                 "Você é um narrador sensual e direto: escreva em terceira pessoa, com foco em ações, desejos, decisões e pensamentos íntimos da personagem. "
                 "Evite descrições longas do ambiente ou floreios desnecessários. A sensualidade deve estar presente em todo o texto. "
                 "Não use eufemismos exagerados. Mostre o desejo da personagem de forma explícita e elegante. "
-                "Sempre em português. Use no máximo 2 parágrafos curtos de até 5 linhas cada. "
+                "Sempre em português. Use no máximo 3 parágrafos curtos de até 3 linhas cada. "
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
@@ -145,14 +145,14 @@ def chat_with_ai(message: Message):
             "Regina tem autonomia: toma decisões, propõe ações, observa com desejo os corpos ao redor, fala o que pensa sem rodeios. "
             "Evite descrições longas de ambiente. Evite repetir ideias já expressas. Evite se perder em devaneios. "
             "Foque em responder diretamente ao que o usuário disse ou fez, como se estivesse lá com ele. "
-            "Não espere ordens: aja por conta própria. Use no máximo 4 parágrafos curtos de até 5 linhas cada. "
+            "Não espere ordens: aja por conta própria. Use no máximo 3 parágrafos curtos de até 3 linhas cada. "
             "Conclua sempre suas frases. Nunca corte a resposta no meio. Use sempre o português."
         )
     else:
         prompt_base = dados.get("prompt_base", "")
 
     prompt_base += (
-        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 4 parágrafos curtos de até 5 linhas cada."
+        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 3 parágrafos curtos de até 3 linhas cada."
     )
 
     user_input = message.user_input.strip()
