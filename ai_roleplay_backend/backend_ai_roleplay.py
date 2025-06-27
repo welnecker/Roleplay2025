@@ -109,8 +109,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         aba_dialogos = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
         dialogos = aba_dialogos.get_all_values()
         if len(dialogos) < 3:
-            dados_pers = carregar_dados_personagem(nome_personagem)
-            return dados_pers.get("introducao", "").strip()
+            return ""
 
         ult = dialogos[-2:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
@@ -129,8 +128,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
             return resumo
         else:
             print(f"[AVISO] Resumo inválido: '{resumo}'")
-            dados_pers = carregar_dados_personagem(nome_personagem)
-            return dados_pers.get("introducao", "").strip()
+            return ""
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
@@ -138,11 +136,13 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
+        sinopse = gerar_resumo_ultimas_interacoes(personagem).strip()
+        if sinopse:
+            return {"resumo": sinopse}
+
         dados_pers = carregar_dados_personagem(personagem)
         introducao_texto = dados_pers.get("introducao", "").strip()
-        sinopse = gerar_resumo_ultimas_interacoes(personagem).strip()
-        resumo = sinopse if sinopse else introducao_texto
-        return {"resumo": resumo}
+        return {"resumo": introducao_texto}
     except Exception as e:
         print(f"[ERRO /intro/] {e}")
         return {"resumo": ""}
@@ -165,3 +165,6 @@ def listar_personagens():
         return pers
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
+    }
+  ]
+}
