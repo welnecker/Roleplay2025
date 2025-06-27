@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
 
-from fastapi import FastAPI, Request, Query
-from pydantic import BaseModel
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
+from datetime import datetime
 from openai import OpenAI
 import json
 import os
@@ -35,7 +35,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# === Controle de introducao mostrada por personagem e usuario ===
+# Controle de introducao mostrada por personagem e usuario
 introducao_mostrada_por_usuario = {}
 
 class Message(BaseModel):
@@ -47,8 +47,8 @@ class Message(BaseModel):
 
 def call_ai(mensagens, temperature=0.3, max_tokens=100):
     try:
-        openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
-        response = openai_client.chat.completions.create(
+        client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+        response = client.chat.completions.create(
             model="gpt-4o",
             messages=mensagens,
             temperature=temperature,
@@ -59,16 +59,16 @@ def call_ai(mensagens, temperature=0.3, max_tokens=100):
         print(f"[ERRO no call_ai] {e}")
         return "Sorry, there was a problem generating the response."
 
-# === Funções auxiliares ===
+# Funções auxiliares
+
 def carregar_dados_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
         for p in dados:
-            if (
-                p['nome'].strip().lower() == nome_personagem.strip().lower()
-                and p.get("usar", "").strip().lower() == "sim"
-            ):
+            nome = p.get('nome', '').strip().lower()
+            usar = str(p.get('usar', '')).strip().lower()
+            if nome == nome_personagem.strip().lower() and usar == 'sim':
                 return p
         return {}
     except Exception as e:
@@ -80,36 +80,17 @@ def carregar_memorias_do_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
         todas = aba.get_all_records()
-
-        filtradas = [
-            m for m in todas
-            if m.get("personagem", "").strip().lower() == nome_personagem.strip().lower()
-        ]
-
+        filtradas = [m for m in todas if m.get('personagem', '').strip().lower() == nome_personagem.strip().lower()]
         try:
-            filtradas.sort(
-                key=lambda m: datetime.strptime(m.get("data", ""), "%Y-%m-%d"),
-                reverse=True,
-            )
+            filtradas.sort(key=lambda m: datetime.strptime(m.get('data',''), "%Y-%m-%d"), reverse=True)
         except:
             pass
-
-        memorias_relevantes = []
+        mems = []
         for m in filtradas:
-            tipo = m.get("tipo", "").strip()
-            titulo = m.get("titulo", "").strip()
-            data = m.get("data", "").strip()
-            emocao = m.get("emoção", "").strip()
-            relevancia = m.get("relevância", "").strip()
-            conteudo = m.get("conteudo", "").strip()
-
-            memoria = (
-                f"[{tipo}] ({emocao}) {titulo} - {data}: {conteudo} "
-                f"(Relevância: {relevancia})"
+            mems.append(
+                f"[{m.get('tipo','')}] ({m.get('emoção','')}) {m.get('titulo','')} - {m.get('data','')}: {m.get('conteudo','')} (Relevância: {m.get('relevância','')})"
             )
-            memorias_relevantes.append(memoria)
-
-        return memorias_relevantes
+        return mems
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
         return []
@@ -118,18 +99,16 @@ def carregar_memorias_do_personagem(nome_personagem: str):
 def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
-        nova_linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), role, conteudo]
-        aba.append_row(nova_linha)
+        linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), role, conteudo]
+        aba.append_row(linha)
     except Exception as e:
         print(f"[ERRO ao salvar diálogo] {e}")
 
 
 def salvar_sinopse(nome_personagem: str, texto: str):
     try:
-        aba_nome = f"{nome_personagem}_sinopse"
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(aba_nome)
-        linha = [datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto)]
-        aba.append_row(linha)
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
+        aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto)])
     except Exception as e:
         print(f"[ERRO ao salvar sinopse] {e}")
 
@@ -140,26 +119,15 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         dialogos = aba.get_all_values()
         if len(dialogos) < 5:
             return ""
-
-        ultimas_interacoes = dialogos[-5:]
-        dialogos_formatados = "\n".join(
-            [f"{linha[1]}: {linha[2]}" for linha in ultimas_interacoes if len(linha) >= 3]
-        )
-
+        ult = dialogos[-5:]
+        txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l)>=3])
         prompt = [
-            {
-                "role": "system",
-                "content": (
-                    "Summarize the following dialogue excerpts into a short, engaging narrative "
-                    "in the style of 'previously on...', like a gripping story continuation."
-                ),
-            },
-            {"role": "user", "content": dialogos_formatados},
+            {"role":"system","content":"Summarize the following dialogue excerpts into a short, engaging narrative in the style of 'previously on...'"},
+            {"role":"user","content":txt}
         ]
-
-        resumo_narrativo = call_ai(prompt, max_tokens=280)
-        salvar_sinopse(nome_personagem, resumo_narrativo)
-        return f"Previously on...\n\n{resumo_narrativo}"
+        resumo = call_ai(prompt, max_tokens=280)
+        salvar_sinopse(nome_personagem, resumo)
+        return f"Previously on...\n\n{resumo}"
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
@@ -167,34 +135,28 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
 @app.post("/chat/")
 def chat_with_ai(message: Message):
     nome_personagem = message.personagem
-    dados_pers = carregar_dados_personagem(nome_personagem)
-    if not dados_pers:
-        return JSONResponse(status_code=404, content={"error": "Character not found"})
+    dados = carregar_dados_personagem(nome_personagem)
+    if not dados:
+        return JSONResponse(status_code=404, content={"error":"Character not found"})
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
-    user_name    = dados_pers.get("user_name", "the user")
-    relationship = dados_pers.get("relationship", "companion")
-    contexto     = dados_pers.get("contexto", "")
-    introducao   = dados_pers.get("introducao", "")
+    user_name = dados.get("user_name","the user")
+    relationship = dados.get("relationship","companion")
+    contexto = dados.get("contexto","")
+    introducao = dados.get("introducao","")
 
     prompt_base = f"You are {nome_personagem}, the {relationship} of {user_name}.\n"
     if contexto:
         prompt_base += f"Context: {contexto}\n"
     if introducao:
         prompt_base += f"Intro: {introducao}\n"
-    prompt_base += dados_pers.get("prompt_base", "")
+    prompt_base += dados.get("prompt_base","")
 
-    for field, label in [
-        ("idade","Age"),
-        ("traços físicos","Physical traits"),
-        ("diretriz_positiva","Desired behavior"),
-        ("diretriz_negativa","Avoid"),
-        ("exemplo","Example of expected response")
-    ]:
-        if dados_pers.get(field):
-            prompt_base += f"\n{label}: {dados_pers[field]}"
+    for field,label in [("idade","Age"),("traços físicos","Physical traits"),("diretriz_positiva","Desired behavior"),("diretriz_negativa","Avoid"),("exemplo","Example of expected response")]:
+        if dados.get(field):
+            prompt_base += f"\n{label}: {dados[field]}"
 
     prompt_base += (
         "\nSpeak in natural, sensual, and emotionally engaging English. "
@@ -202,10 +164,9 @@ def chat_with_ai(message: Message):
         "Take initiative — don’t ask repetitive or generic questions. "
         "Avoid robotic or reflective monologues. "
         "Show desire through action, body language, eye contact, and brief seductive dialogue. "
-        "Blend thoughts in *italics* with spoken lines in quotation marks."
+        "Blend thoughts in italics with spoken lines in quotation marks."
     )
 
-    # ────────── AQUI ──────────
     # style guidelines para respostas práticas, sem drama
     prompt_base += (
         "\n\n**Style guidelines:**\n"
@@ -217,19 +178,71 @@ def chat_with_ai(message: Message):
         "- Focar em ações objetivas e diálogo realista.\n"
         "- Tom prático, autêntico e conversacional.\n"
     )
-    # ─────────────────────────
 
     mensagens = []
-    user_input = message.user_input.strip()
-
-    # ────────── AQUI ──────────
+    ui = message.user_input.strip()
     # detecção de cena entre aspas
-    if user_input.startswith('"') and user_input.endswith('"'):
-        cena = user_input.strip('"').strip()
+    if ui.startswith('"') and ui.endswith('"'):
+        cena = ui.strip('"').strip()
         mensagens.append({
-            "role": "system",
-            "content": (
-                f"You are {nome_personagem}. "
-                f"The text between quotes is a SCENE DIRECTION: \"{cena}\". "
-                "Respond in short, objective sentences, without florid language."
+            "role":"system",
+            "content":(
+                f"You are {nome_personagem}. The text between quotes is a SCENE DIRECTION: "
+                f"{cena}". Respond in short, objective sentences, without florid language.
             )
+        })
+    else:
+        mensagens.append({
+            "role":"system",
+            "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)
+        })
+
+    mensagens.append({"role":"user","content":ui})
+
+    resposta = call_ai(mensagens)
+
+    salvar_dialogo(nome_personagem,"user", message.user_input)
+    salvar_dialogo(nome_personagem,"assistant", resposta)
+
+    chave = f"{nome_personagem.lower()}_{user_name.lower()}"
+    mostrar_intro = False
+    if message.primeira_interacao and not introducao_mostrada_por_usuario.get(chave):
+        mostrar_intro = True
+        introducao_mostrada_por_usuario[chave] = True
+
+    return {"sinopse": sinopse, "response": resposta, "modo": message.modo, "introducao": introducao if mostrar_intro else ""}
+
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        pers = []
+        for p in dados:
+            if str(p.get("usar","")).strip().lower() != "sim":
+                continue
+            pers.append({
+                "nome": p.get("nome",""),
+                "descricao": p.get("descrição curta",""),
+                "idade": p.get("idade",""),
+                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip()}.jpg"
+            })
+        return pers
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+@app.get("/ping")
+def ping():
+    return {"status":"ok"}
+
+@app.get("/intro/")
+def get_intro(nome: str = Query(...), personagem: str = Query(...)):
+    try:
+        dados_pers = carregar_dados_personagem(personagem)
+        introducao_texto = dados_pers.get("introducao","").strip()
+        sinopse = gerar_resumo_ultimas_interacoes(personagem).strip()
+        resumo = sinopse if sinopse else introducao_texto
+        return {"resumo": resumo}
+    except Exception as e:
+        print(f"[ERRO /intro/] {e}")
+        return {"resumo":""}
