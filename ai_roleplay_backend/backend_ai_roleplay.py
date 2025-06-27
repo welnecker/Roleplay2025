@@ -140,15 +140,24 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         ult = dialogos[-5:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
         prompt = [
-            {"role": "system", "content": (
-                "Summarize the following dialogue excerpts into a short, engaging narrative "
-                "in the style of 'previously on...'"
-            )},
-            {"role": "user", "content": txt}
+            {
+                "role": "system",
+                "content": (
+                    "Você é um assistente que resume excertos de diálogos em um texto curto "
+                    "e envolvente no estilo de 'anteriormente em...'. Responda sempre em português."
+                )
+            },
+            {
+                "role": "user",
+                "content": (
+                    "Por favor, gere uma sinopse em português dos seguintes diálogos:\n\n"
+                    f"{txt}"
+                )
+            }
         ]
         resumo = call_ai(prompt, max_tokens=280)
         salvar_sinopse(nome_personagem, resumo)
-        return f"Previously on...\n\n{resumo}"
+        return f"Anteriormente em...\n\n{resumo}"
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
