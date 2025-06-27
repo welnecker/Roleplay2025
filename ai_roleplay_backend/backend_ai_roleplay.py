@@ -12,7 +12,10 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
 # === Setup Google Sheets ===
-scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+scope = [
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
+]
 creds_dict = json.loads(os.environ["GOOGLE_CREDS_JSON"])
 if "private_key" in creds_dict:
     creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
@@ -36,13 +39,13 @@ app.add_middleware(
 introducao_mostrada_por_usuario = {}
 
 class Message(BaseModel):
+    personagem: str
     user_input: str
-    score: int
-    modo: str = "romântico"
-    personagem: str = "Jennifer"
+    modo: str = "default"
     primeira_interacao: bool = False
 
-def call_ai(mensagens, temperature=0.88, max_tokens=750):
+
+def call_ai(mensagens, temperature=0.3, max_tokens=100):
     try:
         openai_client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
         response = openai_client.chat.completions.create(
@@ -62,12 +65,16 @@ def carregar_dados_personagem(nome_personagem: str):
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
         for p in dados:
-            if p['nome'].strip().lower() == nome_personagem.strip().lower() and p.get("usar", "").strip().lower() == "sim":
+            if (
+                p['nome'].strip().lower() == nome_personagem.strip().lower()
+                and p.get("usar", "").strip().lower() == "sim"
+            ):
                 return p
         return {}
     except Exception as e:
         print(f"[ERRO ao carregar dados do personagem] {e}")
         return {}
+
 
 def carregar_memorias_do_personagem(nome_personagem: str):
     try:
@@ -80,7 +87,10 @@ def carregar_memorias_do_personagem(nome_personagem: str):
         ]
 
         try:
-            filtradas.sort(key=lambda m: datetime.strptime(m.get("data", ""), "%Y-%m-%d"), reverse=True)
+            filtradas.sort(
+                key=lambda m: datetime.strptime(m.get("data", ""), "%Y-%m-%d"),
+                reverse=True,
+            )
         except:
             pass
 
@@ -93,14 +103,17 @@ def carregar_memorias_do_personagem(nome_personagem: str):
             relevancia = m.get("relevância", "").strip()
             conteudo = m.get("conteudo", "").strip()
 
-            memoria = f"[{tipo}] ({emocao}) {titulo} - {data}: {conteudo} (Relevância: {relevancia})"
+            memoria = (
+                f"[{tipo}] ({emocao}) {titulo} - {data}: {conteudo} "
+                f"(Relevância: {relevancia})"
+            )
             memorias_relevantes.append(memoria)
 
         return memorias_relevantes
-
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
         return []
+
 
 def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     try:
@@ -110,6 +123,7 @@ def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     except Exception as e:
         print(f"[ERRO ao salvar diálogo] {e}")
 
+
 def salvar_sinopse(nome_personagem: str, texto: str):
     try:
         aba_nome = f"{nome_personagem}_sinopse"
@@ -118,6 +132,7 @@ def salvar_sinopse(nome_personagem: str, texto: str):
         aba.append_row(linha)
     except Exception as e:
         print(f"[ERRO ao salvar sinopse] {e}")
+
 
 def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
@@ -134,12 +149,12 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         prompt = [
             {
                 "role": "system",
-                "content": "Summarize the following dialogue excerpts into a short, engaging narrative in the style of 'previously on...', like a gripping story continuation.",
+                "content": (
+                    "Summarize the following dialogue excerpts into a short, engaging narrative "
+                    "in the style of 'previously on...', like a gripping story continuation."
+                ),
             },
-            {
-                "role": "user",
-                "content": dialogos_formatados,
-            },
+            {"role": "user", "content": dialogos_formatados},
         ]
 
         resumo_narrativo = call_ai(prompt, max_tokens=280)
@@ -149,22 +164,6 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
 
-from fastapi import FastAPI, Query
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
-
-app = FastAPI()
-
-# ... seus imports de carregar_dados_personagem, gerar_resumo_ultimas_interacoes, call_ai etc.
-
-introducao_mostrada_por_usuario = {}
-
-class Message(BaseModel):
-    personagem: str
-    user_input: str
-    modo: str = "default"
-    primeira_interacao: bool = False
-
 @app.post("/chat/")
 def chat_with_ai(message: Message):
     nome_personagem = message.personagem
@@ -172,11 +171,9 @@ def chat_with_ai(message: Message):
     if not dados_pers:
         return JSONResponse(status_code=404, content={"error": "Character not found"})
 
-    # carrega memórias e sinopse
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
-    # monta prompt_base
     user_name    = dados_pers.get("user_name", "the user")
     relationship = dados_pers.get("relationship", "companion")
     contexto     = dados_pers.get("contexto", "")
@@ -208,22 +205,20 @@ def chat_with_ai(message: Message):
         "Blend thoughts in *italics* with spoken lines in quotation marks."
     )
 
-   # ────────── AQUI ──────────
-# style guidelines para respostas práticas, sem drama
-prompt_base += (
-    "\n\n**Style guidelines:**\n"
-    "- Máximo 2 frases por parágrafo.\n"
-    "- Vocabulário simples e cotidiano (até 8ª série).\n"
-    "- Sem descrições longas de ambiente.\n"
-    "- Proibido uso de metáforas, linguagem poética ou rebuscada.\n"
-    "- Não incluir pensamentos internos ou texto em *itálico*.\n"
-    "- Focar em ações objetivas e diálogo realista.\n"
-    "- Tom prático, autêntico e conversacional.\n"
-)
-# ─────────────────────────
+    # ────────── AQUI ──────────
+    # style guidelines para respostas práticas, sem drama
+    prompt_base += (
+        "\n\n**Style guidelines:**\n"
+        "- Máximo 2 frases por parágrafo.\n"
+        "- Vocabulário simples e cotidiano (até 8ª série).\n"
+        "- Sem descrições longas de ambiente.\n"
+        "- Proibido uso de metáforas, linguagem poética ou rebuscada.\n"
+        "- Não incluir pensamentos internos ou texto em *itálico*.\n"
+        "- Focar em ações objetivas e diálogo realista.\n"
+        "- Tom prático, autêntico e conversacional.\n"
+    )
+    # ─────────────────────────
 
-
-    # monta lista de mensagens
     mensagens = []
     user_input = message.user_input.strip()
 
@@ -238,81 +233,3 @@ prompt_base += (
                 f"The text between quotes is a SCENE DIRECTION: \"{cena}\". "
                 "Respond in short, objective sentences, without florid language."
             )
-        })
-    else:
-        mensagens.append({
-            "role": "system",
-            "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)
-        })
-    # ─────────────────────────
-
-    mensagens.append({"role": "user", "content": user_input})
-
-    # ────────── AQUI ──────────
-    # chamada a call_ai com limites de tokens e temperatura
-    resposta_ia = call_ai(
-        mensagens,
-        temperature=0.3,    # respostas mais focadas
-        max_tokens=100      # parágrafos curtos
-    )
-    # ─────────────────────────
-
-    # salva histórico
-    salvar_dialogo(nome_personagem, "user", message.user_input)
-    salvar_dialogo(nome_personagem, "assistant", resposta_ia)
-
-    # lógica de introdução na primeira interação
-    chave_usuario = f"{nome_personagem.lower()}_{user_name.lower()}"
-    mostrar_intro = False
-    if message.primeira_interacao and not introducao_mostrada_por_usuario.get(chave_usuario):
-        mostrar_intro = True
-        introducao_mostrada_por_usuario[chave_usuario] = True
-
-    return {
-        "sinopse": sinopse,
-        "response": resposta_ia,
-        "modo": message.modo,
-        "introducao": introducao if mostrar_intro else ""
-    }
-
-@app.get("/personagens/")
-def listar_personagens():
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = aba.get_all_records()
-        personagens = []
-        for p in dados:
-            if str(p.get("usar", "")).strip().lower() != "sim":
-                continue
-            nome = p.get("nome", "")
-            personagens.append({
-                "nome": nome,
-                "descricao": p.get("descrição curta", ""),
-                "idade": p.get("idade", ""),
-                "foto": f"{GITHUB_IMG_URL}{nome.strip()}.jpg"
-            })
-        return personagens
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
-
-@app.get("/intro/")
-def get_intro(nome: str = Query(...), personagem: str = Query(...)):
-    try:
-        # carrega introdução da planilha
-        dados_pers = carregar_dados_personagem(personagem)
-        introducao_texto = dados_pers.get("introducao", "").strip()
-
-        # tenta gerar sinopse das últimas interações
-        sinopse = gerar_resumo_ultimas_interacoes(personagem).strip()
-
-        # se não houver sinopse, cai na introdução
-        resumo = sinopse if sinopse else introducao_texto
-        return {"resumo": resumo}
-    except Exception as e:
-        print(f"[ERRO /intro/] {e}")
-        return {"resumo": ""}
-
