@@ -46,7 +46,7 @@ class Message(BaseModel):
     modo: str = "default"
     primeira_interacao: bool = False
 
-def call_ai(mensagens, temperature=0.8, max_tokens=350):
+def call_ai(mensagens, temperature=0.8, max_tokens=250):
     try:
         client = OpenAI(api_key=environment.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
@@ -111,7 +111,8 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
             {"role": "system", "content": (
                 "Você é um narrador cinematográfico: escreva em terceira pessoa, com descrições sensoriais vívidas, "
                 "metáforas e emoções. Sempre em português. Conclua suas frases sem cortes abruptos. "
-                "Limite a resposta a dois parágrafos curtos e objetivos. Se houver entre aspas, trate como cenário inicial."
+                "Limite a resposta a no máximo 2 parágrafos curtos de até 5 linhas cada. "
+                "Se houver entre aspas, trate como cenário inicial."
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
@@ -133,7 +134,7 @@ def chat_with_ai(message: Message):
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
     prompt_base = dados.get("prompt_base", "") + (
-        "\n\nConclua sempre suas frases e evite cortes inesperados."
+        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 4 parágrafos curtos de até 5 linhas cada."
     )
 
     # Tratamento para entradas entre aspas como contexto narrativo
