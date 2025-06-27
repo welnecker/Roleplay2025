@@ -62,14 +62,35 @@ def call_ai(mensagens, temperature=0.3, max_tokens=100):
 # Funções auxiliares
 
 def carregar_dados_personagem(nome_personagem: str):
+    """
+    Carrega dados do personagem pelo nome. Primeiro tenta validar 'usar' == 'sim',
+    mas, se encontrar um personagem com nome correspondente mesmo que 'usar' != 'sim',
+    retorna-o (emite warning).
+    """
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
+        # Debug: mostrar colunas e linhas
+        if dados:
+            print("[DEBUG] Colunas disponíveis em 'personagens':", list(dados[0].keys()))
+        match_ignorar_uso = None
         for p in dados:
-            nome = p.get('nome', '').strip().lower()
-            usar = str(p.get('usar', '')).strip().lower()
-            if nome == nome_personagem.strip().lower() and usar == 'sim':
-                return p
+            nome_planilha = p.get('nome','').strip().lower()
+            usar = str(p.get('usar','')).strip().lower()
+            print(f"[DEBUG] Verificando: nome='{nome_planilha}', usar='{usar}'")
+            if nome_planilha == nome_personagem.strip().lower():
+                if usar == 'sim':
+                    print("[DEBUG] Personagem validado e retornado:", p)
+                    return p
+                if match_ignorar_uso is None:
+                    match_ignorar_uso = p
+        if match_ignorar_uso:
+            print(f"[WARNING] Personagem '{nome_personagem}' encontrado mas 'usar' != 'sim': retornando mesmo assim.")
+            return match_ignorar_uso
+        print(f"[DEBUG] Nenhum personagem correspondeu ao nome '{nome_personagem}'.")
+        return {}
+    except Exception as e:
+        print(f"[ERRO ao carregar dados do personagem] {e}")
         return {}
     except Exception as e:
         print(f"[ERRO ao carregar dados do personagem] {e}")
