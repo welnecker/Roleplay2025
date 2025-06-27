@@ -169,19 +169,18 @@ class Message(BaseModel):
 def chat_with_ai(message: Message):
     nome_personagem = message.personagem
     dados_pers = carregar_dados_personagem(nome_personagem)
-
     if not dados_pers:
         return JSONResponse(status_code=404, content={"error": "Character not found"})
 
-    # Carrega memórias e sinopse
+    # carrega memórias e sinopse
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
 
-    # Base do prompt (seu código original)
-    user_name   = dados_pers.get("user_name", "the user")
-    relationship= dados_pers.get("relationship", "companion")
-    contexto    = dados_pers.get("contexto", "")
-    introducao  = dados_pers.get("introducao", "")
+    # monta prompt_base
+    user_name    = dados_pers.get("user_name", "the user")
+    relationship = dados_pers.get("relationship", "companion")
+    contexto     = dados_pers.get("contexto", "")
+    introducao   = dados_pers.get("introducao", "")
 
     prompt_base = f"You are {nome_personagem}, the {relationship} of {user_name}.\n"
     if contexto:
@@ -190,9 +189,13 @@ def chat_with_ai(message: Message):
         prompt_base += f"Intro: {introducao}\n"
     prompt_base += dados_pers.get("prompt_base", "")
 
-    for field, label in [("idade","Age"),("traços físicos","Physical traits"),
-                         ("diretriz_positiva","Desired behavior"),
-                         ("diretriz_negativa","Avoid"),("exemplo","Example of expected response")]:
+    for field, label in [
+        ("idade","Age"),
+        ("traços físicos","Physical traits"),
+        ("diretriz_positiva","Desired behavior"),
+        ("diretriz_negativa","Avoid"),
+        ("exemplo","Example of expected response")
+    ]:
         if dados_pers.get(field):
             prompt_base += f"\n{label}: {dados_pers[field]}"
 
@@ -205,7 +208,8 @@ def chat_with_ai(message: Message):
         "Blend thoughts in *italics* with spoken lines in quotation marks."
     )
 
-        # ——— style guidelines para parágrafos curtos e vocabulário simples ———
+    # ────────── AQUI ──────────
+    # style guidelines para parágrafos curtos e vocabulário simples
     prompt_base += (
         "\n\n**Style guidelines:**\n"
         "- No more than **2 sentences** per paragraph.\n"
@@ -214,14 +218,14 @@ def chat_with_ai(message: Message):
         "- **Avoid** florid or high-level vocabulary.\n"
         "- Be **direct** and **engaging**, sem monólogos extensos.\n"
     )
+    # ─────────────────────────
 
-
-    # Monta lista de mensagens para o call_ai
+    # monta lista de mensagens
     mensagens = []
-
     user_input = message.user_input.strip()
 
-    # Se houver aspas no início e fim, trata como DIREÇÃO DE CENA
+    # ────────── AQUI ──────────
+    # detecção de cena entre aspas
     if user_input.startswith('"') and user_input.endswith('"'):
         cena = user_input.strip('"').strip()
         mensagens.append({
@@ -233,28 +237,28 @@ def chat_with_ai(message: Message):
             )
         })
     else:
-        # system prompt padrão
         mensagens.append({
             "role": "system",
             "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)
         })
-    
-    # Adiciona a fala do usuário
+    # ─────────────────────────
+
     mensagens.append({"role": "user", "content": user_input})
 
-    # Chama a IA
-       resposta_ia = call_ai(
+    # ────────── AQUI ──────────
+    # chamada a call_ai com limites de tokens e temperatura
+    resposta_ia = call_ai(
         mensagens,
         temperature=0.5,    # respostas mais focadas
-        max_tokens=150      # máximo ~150 tokens para parágrafos curtos
+        max_tokens=150      # parágrafos curtos
     )
+    # ─────────────────────────
 
-
-    # Salva histórico
+    # salva histórico
     salvar_dialogo(nome_personagem, "user", message.user_input)
     salvar_dialogo(nome_personagem, "assistant", resposta_ia)
 
-    # Lógica de mostrar introdução apenas na primeira interação
+    # lógica de introdução na primeira interação
     chave_usuario = f"{nome_personagem.lower()}_{user_name.lower()}"
     mostrar_intro = False
     if message.primeira_interacao and not introducao_mostrada_por_usuario.get(chave_usuario):
@@ -295,16 +299,15 @@ def ping():
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
-        # 1) Carrega o texto de introdução que você definiu na aba "personagens"
+        # carrega introdução da planilha
         dados_pers = carregar_dados_personagem(personagem)
         introducao_texto = dados_pers.get("introducao", "").strip()
 
-        # 2) Tenta gerar a sinopse das últimas interações
+        # tenta gerar sinopse das últimas interações
         sinopse = gerar_resumo_ultimas_interacoes(personagem).strip()
 
-        # 3) Se não houver sinopse, use a introdução; caso contrário, preferia a sinopse
+        # se não houver sinopse, cai na introdução
         resumo = sinopse if sinopse else introducao_texto
-
         return {"resumo": resumo}
     except Exception as e:
         print(f"[ERRO /intro/] {e}")
