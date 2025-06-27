@@ -126,6 +126,42 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
 
+@app.post("/chat/")
+def chat_with_ai(message: Message):
+    try:
+        personagem = message.personagem
+        entrada_usuario = message.user_input.strip()
+
+        dados = carregar_dados_personagem(personagem)
+        if not dados:
+            return JSONResponse(status_code=404, content={"error": "Character not found"})
+
+        sinopse = gerar_resumo_ultimas_interacoes(personagem)
+        memorias = carregar_memorias_do_personagem(personagem)
+
+        user_name = dados.get("user_name", "Usuário")
+        relacionamento = dados.get("relationship", "companheira")
+
+        prompt_base = f"Você é {personagem}, {relacionamento} de {user_name}.\n"
+        if sinopse:
+            prompt_base += f"Resumo recente: {sinopse}\n"
+        if memorias:
+            prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
+
+        mensagens = [
+            {"role": "system", "content": prompt_base},
+            {"role": "user", "content": entrada_usuario}
+        ]
+
+        resposta = call_ai(mensagens)
+        salvar_dialogo(personagem, "user", entrada_usuario)
+        salvar_dialogo(personagem, "assistant", resposta)
+
+        return {"response": resposta, "sinopse": sinopse}
+    except Exception as e:
+        print(f"[ERRO /chat/] {e}")
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
