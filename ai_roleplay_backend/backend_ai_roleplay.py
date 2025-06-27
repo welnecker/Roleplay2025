@@ -134,7 +134,7 @@ def chat_with_ai(message: Message):
     nome_personagem = message.personagem
     dados = carregar_dados_personagem(nome_personagem)
     if not dados:
-        return JSONResponse(status_code=404, content={"error": "Nenhum personagem encontrado"})
+        return JSONResponse(status_code=404, content={"error": "Character not found"})
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
