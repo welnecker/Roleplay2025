@@ -23,7 +23,7 @@ if "private_key" in creds_dict:
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gsheets_client = gspread.authorize(creds)
 
-PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
+PLANILHA_ID = "1qFTGu-NKLt-4q5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 
 # === FastAPI ===
@@ -45,7 +45,7 @@ class Message(BaseModel):
     primeira_interacao: bool = False
 
 
-def call_ai(mensagens, temperature=0.3, max_tokens=100):
+def call_ai(mensagens, temperature=0.8, max_tokens=350):
     try:
         client = OpenAI(api_key=environment.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
@@ -59,7 +59,6 @@ def call_ai(mensagens, temperature=0.3, max_tokens=100):
         print(f"[ERRO no call_ai] {e}")
         return ""
 
-# Funções auxiliares
 
 def carregar_dados_personagem(nome_personagem: str):
     try:
@@ -79,10 +78,7 @@ def carregar_memorias_do_personagem(nome_personagem: str):
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
         todas = aba.get_all_records()
         filtradas = [m for m in todas if m.get('personagem','').strip().lower() == nome_personagem.strip().lower()]
-        mems = []
-        for m in filtradas:
-            mems.append(f"[{m.get('tipo')}] {m.get('conteudo')}")
-        return mems
+        return [f"[{m.get('tipo')}] {m.get('conteudo')}" for m in filtradas]
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
         return []
@@ -116,11 +112,17 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         prompt = [
             {"role": "system", "content": (
                 "Você é um narrador cinematográfico: escreva em terceira pessoa, com descrições sensoriais vívidas, "
-                "metáforas e emoções. Sempre em português."
+                "metáforas e emoções. Sempre em português. Conclua suas frases sem cortes abruptos."
             )},
-            {"role": "user", "content": f"Por favor, gere uma sinopse envolvente destes diálogos:\n\n{txt}"}
+            {"role": "assistant", "content": (
+                "Exemplo:\n"
+                "A tempestade tamborilava sobre o capacete de Regina, cada gota um sussurro gelado. "
+                "Quando avistou o letreiro em neon, um arrepio atravessou sua espinha — não só pelo frio, "
+                "mas pelas memórias que vieram com o motor desligando."
+            )},
+            {"role": "user", "content": f"Agora, usando esse estilo, gere uma narrativa completa destes excertos:\n\n{txt}"}
         ]
-        resumo = call_ai(prompt, temperature=0.8, top_p=0.9, max_tokens=350)
+        resumo = call_ai(prompt)
         salvar_sinopse(nome_personagem, resumo)
         return resumo
     except Exception as e:
@@ -136,10 +138,13 @@ def chat_with_ai(message: Message):
 
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
-    user_name = dados.get("user_name", "usuário")
-    relationship = dados.get("relationship", "companheiro")
-    prompt_base = dados.get("prompt_base", "")
-    mensagens = [{"role": "system", "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)}, {"role": "user", "content": message.user_input}]
+    prompt_base = dados.get("prompt_base", "") + (
+        "\n\nConclua sempre suas frases e evite cortes inesperados."
+    )
+    mensagens = [
+        {"role": "system", "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)},
+        {"role": "user", "content": message.user_input}
+    ]
     resposta = call_ai(mensagens)
     salvar_dialogo(nome_personagem, "user", message.user_input)
     salvar_dialogo(nome_personagem, "assistant", resposta)
@@ -152,8 +157,13 @@ def listar_personagens():
         dados = aba.get_all_records()
         pers = []
         for p in dados:
-            if str(p.get("usar","")).strip().lower() == "sim":
-                pers.append({"nome": p.get("nome"), "foto": f"{GITHUB_IMG_URL}{p.get('nome')}.jpg"})
+            if str(p.get("usar", "")).strip().lower() == "sim":
+                pers.append({
+                    "nome": p.get("nome", ""),
+                    "descricao": p.get("descrição curta", ""),
+                    "idade": p.get("idade", ""),
+                    "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip()}.jpg"
+                })
         return pers
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
@@ -166,7 +176,7 @@ def ping():
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
         dados_pers = carregar_dados_personagem(personagem)
-        introducao_texto = dados_pers.get("introducao","").strip()
+        introducao_texto = dados_pers.get("introducao", "").strip()
         # tenta retornar última sinopse salva
         try:
             aba_sin = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
