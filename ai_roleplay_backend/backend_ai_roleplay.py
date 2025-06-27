@@ -24,11 +24,9 @@ if "private_key" in creds_dict:
 creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gsheets_client = gspread.authorize(creds)
 
-# ID correto da planilha
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 
-# === FastAPI setup ===
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -101,18 +99,25 @@ def salvar_sinopse(nome_personagem: str, texto: str):
 
 def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
-        dialogos = aba.get_all_values()
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
+        sinopses_existentes = aba.get_all_values()
+        if sinopses_existentes:
+            return sinopses_existentes[-1][1] if len(sinopses_existentes[-1]) > 1 else ""
+
+        aba_dialogos = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
+        dialogos = aba_dialogos.get_all_values()
         if len(dialogos) < 3:
-            return ""
+            dados_pers = carregar_dados_personagem(nome_personagem)
+            return dados_pers.get("introducao", "")
+
         ult = dialogos[-2:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
         prompt = [
             {"role": "system", "content": (
                 "Você é um narrador sensual e direto: escreva em terceira pessoa, com foco em ações, desejos, decisões e pensamentos íntimos da personagem. "
                 "Evite descrições longas do ambiente ou floreios desnecessários. A sensualidade deve estar presente em todo o texto. "
-                "Não use eufemismos exagerados. Mostre o desejo da personagem de forma explícita e elegante. "
-                "Sempre em português. Use no máximo 3 parágrafos curtos de até 3 linhas cada. "
+                "Mostre o desejo da personagem de forma explícita e elegante. Sempre em português. "
+                "Use no máximo 2 parágrafos curtos, com no máximo 2 frases cada. Evite blocos longos."
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
@@ -145,12 +150,12 @@ def chat_with_ai(message: Message):
             "Regina tem autonomia: toma decisões, propõe ações, observa com desejo os corpos ao redor, fala o que pensa sem rodeios. "
             "Evite descrições longas de ambiente. Evite repetir ideias já expressas. Evite se perder em devaneios. "
             "Foque em responder diretamente ao que o usuário disse ou fez, como se estivesse lá com ele. "
-            "Não espere ordens: aja por conta própria. Use no máximo 3 parágrafos curtos de até 3 linhas cada. "
+            "Não espere ordens: aja por conta própria. "
+            "Use no máximo 2 parágrafos curtos de no máximo 2 linhas visuais cada. Cada parágrafo deve conter no máximo 2 frases. Seja direta, sensual e inteligente. "
             "Conclua sempre suas frases. Nunca corte a resposta no meio. Use sempre o português."
         )
     else:
         prompt_base = dados.get("prompt_base", "")
-        # Expandir dinamicamente com outras colunas
         extras = []
         for campo in ["descrição curta", "idade", "traços físicos", "diretriz_positiva", "diretriz_negativa", "relationship", "contexto"]:
             valor = dados.get(campo, "").strip()
@@ -164,7 +169,7 @@ def chat_with_ai(message: Message):
             prompt_base += f"\n\nExemplo de como responder:\n\"{exemplo}\""
 
     prompt_base += (
-        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 3 parágrafos curtos de até 3 linhas cada."
+        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 2 parágrafos curtos de até 3 linhas cada."
     )
 
     user_input = message.user_input.strip()
