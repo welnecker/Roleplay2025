@@ -96,7 +96,6 @@ def salvar_sinopse(nome_personagem: str, texto: str):
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
         valores = aba.get_all_values()
         if not valores:
-            # Salvar a primeira sinopse como "fixa"
             aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto), "fixa"])
         else:
             aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto)])
@@ -148,6 +147,8 @@ def chat_with_ai(message: Message):
         relacionamento = dados.get("relationship", "companheira")
 
         prompt_base = f"Você é {personagem}, {relacionamento} de {user_name}.\n"
+        prompt_base += "Continue exatamente de onde a história parou. Não reinvente elementos ou reinicie a história.\n"
+        prompt_base += "Nunca contradiga a sinopse fixa inicial, ela define o cenário, a ambientação e o relacionamento.\n"
         if sinopse:
             prompt_base += f"Resumo recente: {sinopse}\n"
         if memorias:
