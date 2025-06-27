@@ -46,7 +46,7 @@ class Message(BaseModel):
     modo: str = "default"
     primeira_interacao: bool = False
 
-def call_ai(mensagens, temperature=0.8, max_tokens=250):
+def call_ai(mensagens, temperature=0.8, max_tokens=220):
     try:
         client = OpenAI(api_key=environment.get("OPENAI_API_KEY", ""))
         response = client.chat.completions.create(
@@ -109,10 +109,10 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
         prompt = [
             {"role": "system", "content": (
-                "Você é um narrador cinematográfico: escreva em terceira pessoa, com descrições sensoriais vívidas, "
-                "metáforas e emoções. Sempre em português. Conclua suas frases sem cortes abruptos. "
-                "Limite a resposta a no máximo 2 parágrafos curtos de até 5 linhas cada. "
-                "Se houver entre aspas, trate como cenário inicial."
+                "Você é um narrador sensual, direto e objetivo. Escreva em terceira pessoa, com foco em ações, pensamentos íntimos e decisões. "
+                "Evite descrições longas do ambiente e eufemismos exagerados. O vocabulário deve ser natural, com sensualidade incluída em todas as falas. "
+                "Regina tem desejos intensos e expressa interesse explícito por quem a atrai. Use no máximo 2 parágrafos curtos de até 5 linhas cada. "
+                "Sempre em português."
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
@@ -134,10 +134,10 @@ def chat_with_ai(message: Message):
     memorias = carregar_memorias_do_personagem(nome_personagem)
     sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
     prompt_base = dados.get("prompt_base", "") + (
-        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 4 parágrafos curtos de até 5 linhas cada."
+        "\n\nConclua sempre suas frases e evite cortes inesperados. Limite a resposta a no máximo 4 parágrafos curtos de até 5 linhas cada. "
+        "Seja sensual e direta. Use vocabulário cotidiano com desejo explícito."
     )
 
-    # Tratamento para entradas entre aspas como contexto narrativo
     user_input = message.user_input.strip()
     if user_input.startswith('"') and user_input.endswith('"'):
         user_input = f"Este é o cenário para o próximo trecho da história: {user_input.strip('" ')}"
@@ -176,13 +176,11 @@ def ping():
 @app.get("/intro/")
 def get_intro(nome: str = Query(...), personagem: str = Query(...)):
     try:
-        # 1. Se aba do personagem estiver vazia, retorna introdução
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         if len(aba_personagem.get_all_values()) < 3:
             dados_pers = carregar_dados_personagem(personagem)
             return {"resumo": dados_pers.get("introducao", "").strip()}
 
-        # 2. Sempre gera nova sinopse e salva
         resumo_gerado = gerar_resumo_ultimas_interacoes(personagem).strip()
         return {"resumo": resumo_gerado}
     except Exception as e:
