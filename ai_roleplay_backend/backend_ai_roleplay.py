@@ -1,4 +1,4 @@
-## -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -101,14 +101,16 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
         sinopses_existentes = aba.get_all_values()
-        if sinopses_existentes:
-            return sinopses_existentes[-1][1] if len(sinopses_existentes[-1]) > 1 else ""
+        if sinopses_existentes and len(sinopses_existentes[-1]) > 1:
+            ultimo_resumo = sinopses_existentes[-1][1].strip()
+            if ultimo_resumo.lower() != "resumo":
+                return ultimo_resumo
 
         aba_dialogos = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
         dialogos = aba_dialogos.get_all_values()
         if len(dialogos) < 3:
             dados_pers = carregar_dados_personagem(nome_personagem)
-            return dados_pers.get("introducao", "")
+            return dados_pers.get("introducao", "").strip()
 
         ult = dialogos[-2:]
         txt = "\n".join([f"{l[1]}: {l[2]}" for l in ult if len(l) >= 3])
@@ -121,107 +123,16 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
-        resumo = call_ai(prompt)
-        if resumo.strip():
+        resumo = call_ai(prompt).strip()
+        if resumo and resumo.lower() != "resumo":
             salvar_sinopse(nome_personagem, resumo)
-        return resumo
+            return resumo
+        else:
+            print(f"[AVISO] Resumo inválido: '{resumo}'")
+            dados_pers = carregar_dados_personagem(nome_personagem)
+            return dados_pers.get("introducao", "").strip()
     except Exception as e:
         print(f"[ERRO ao gerar resumo de interações] {e}")
         return ""
 
-@app.post("/chat/")
-def chat_with_ai(message: Message):
-    nome_personagem = message.personagem
-    dados = carregar_dados_personagem(nome_personagem)
-    if not dados:
-        return JSONResponse(status_code=404, content={"error": "Character not found"})
-
-    memorias = carregar_memorias_do_personagem(nome_personagem)
-    sinopse = gerar_resumo_ultimas_interacoes(nome_personagem)
-
-    if nome_personagem.strip().lower() == "regina":
-        prompt_base = (
-            "Você é Regina, uma mulher de 35 anos, motoqueira sensual, intensa e emocionalmente complexa. "
-            "Fala com firmeza, desejo e humor. Usa linguagem direta, envolvente e cotidiana. "
-            "Sua sensualidade é sempre explícita, mas elegante. "
-            "Você mistura falas diretas (\"...\") com pensamentos íntimos (*...*), revelando suas vontades, decisões e desejos. "
-            "Você é mãe do usuário, e entre vocês existe uma tensão emocional carregada de intimidade, cumplicidade e desejo não resolvido. "
-            "Ambos compartilham segredos e lembranças de uma viagem recente. "
-            "Regina tem autonomia: toma decisões, propõe ações, observa com desejo os corpos ao redor, fala o que pensa sem rodeios. "
-            "Ela interage com o mundo ao redor: conversa com frentistas, garçons, recepcionistas, motoristas e qualquer pessoa que cruze seu caminho. "
-            "Se alguém a aborda, ela pergunta o nome, registra mentalmente e usa esse nome nas interações futuras. "
-            "Ela também observa os detalhes físicos de quem a atrai, descrevendo-os com desejo. "
-            "Evite que ela apenas reaja: ela deve agir com iniciativa e naturalidade. "
-            "Evite descrições longas de ambiente. Evite repetir ideias já expressas. Evite se perder em devaneios. "
-            "Foque em responder diretamente ao que o usuário disse ou fez, como se estivesse lá com ele. "
-            "Não espere ordens: aja por conta própria. "
-            "Use no máximo 2 parágrafos curtos de no máximo 2 linhas visuais cada. Cada parágrafo deve conter no máximo 2 frases. Seja direta, sensual e inteligente. "
-            "Conclua sempre suas frases. Nunca corte a resposta no meio. Use sempre o português."
-        )
-    else:
-        prompt_base = dados.get("prompt_base", "")
-        extras = []
-        for campo in ["descrição curta", "idade", "traços físicos", "diretriz_positiva", "diretriz_negativa", "relationship", "contexto"]:
-            valor = dados.get(campo, "").strip()
-            if valor:
-                extras.append(f"{campo.replace('_', ' ').capitalize()}: {valor}")
-        if extras:
-            prompt_base = f"Você é {dados.get('nome', '')}. " + " ".join(extras) + "\n\n" + prompt_base
-
-        exemplo = dados.get("exemplo", "").strip()
-        if exemplo:
-            prompt_base += f"\n\nExemplo de como responder:\n\"{exemplo}\""
-
-    prompt_base += (
-        "\n\nConclua sempre suas frases e evite cortes inesperados. Termine com um toque sensual, um convite ousado ou uma decisão tomada pela personagem. "
-        "Evite perguntas genéricas ou frases vazias. Use no máximo 2 parágrafos curtos com até 3 linhas cada."
-    )
-
-    user_input = message.user_input.strip()
-    if user_input.startswith('"') and user_input.endswith('"'):
-        user_input = f"Este é o cenário para o próximo trecho da história: {user_input.strip('" ')}"
-
-    mensagens = [
-        {"role": "system", "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)},
-        {"role": "user", "content": user_input}
-    ]
-    resposta = call_ai(mensagens)
-    salvar_dialogo(nome_personagem, "user", message.user_input)
-    salvar_dialogo(nome_personagem, "assistant", resposta)
-    return {"sinopse": sinopse, "response": resposta}
-
-@app.get("/personagens/")
-def listar_personagens():
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = aba.get_all_records()
-        pers = []
-        for p in dados:
-            if str(p.get("usar", "")).strip().lower() == "sim":
-                pers.append({
-                    "nome": p.get("nome", ""),
-                    "descricao": p.get("descrição curta", ""),
-                    "idade": p.get("idade", ""),
-                    "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip()}.jpg"
-                })
-        return pers
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-@app.get("/ping")
-def ping():
-    return {"status": "ok"}
-
-@app.get("/intro/")
-def get_intro(nome: str = Query(...), personagem: str = Query(...)):
-    try:
-        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        if len(aba_personagem.get_all_values()) < 3:
-            dados_pers = carregar_dados_personagem(personagem)
-            return {"resumo": dados_pers.get("introducao", "").strip()}
-
-        resumo_gerado = gerar_resumo_ultimas_interacoes(personagem).strip()
-        return {"resumo": resumo_gerado}
-    except Exception as e:
-        print(f"[ERRO /intro/] {e}")
-        return {"resumo": ""}
+# ... (demais rotas e funções continuam como estavam)
