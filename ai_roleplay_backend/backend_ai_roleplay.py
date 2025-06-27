@@ -111,7 +111,7 @@ def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
             {"role": "system", "content": (
                 "Você é um narrador cinematográfico: escreva em terceira pessoa, com descrições sensoriais vívidas, "
                 "metáforas e emoções. Sempre em português. Conclua suas frases sem cortes abruptos. "
-                "Limite a resposta a no máximo dois parágrafos curtos e objetivos."
+                "Limite a resposta a dois parágrafos curtos e objetivos. Se houver entre aspas, trate como cenário inicial."
             )},
             {"role": "user", "content": f"Gere uma narrativa com base nestes trechos:\n\n{txt}"}
         ]
@@ -135,9 +135,15 @@ def chat_with_ai(message: Message):
     prompt_base = dados.get("prompt_base", "") + (
         "\n\nConclua sempre suas frases e evite cortes inesperados."
     )
+
+    # Tratamento para entradas entre aspas como contexto narrativo
+    user_input = message.user_input.strip()
+    if user_input.startswith('"') and user_input.endswith('"'):
+        user_input = f"Este é o cenário para o próximo trecho da história: {user_input.strip('" ')}"
+
     mensagens = [
         {"role": "system", "content": prompt_base + "\n\n" + sinopse + "\n\n" + "\n".join(memorias)},
-        {"role": "user", "content": message.user_input}
+        {"role": "user", "content": user_input}
     ]
     resposta = call_ai(mensagens)
     salvar_dialogo(nome_personagem, "user", message.user_input)
