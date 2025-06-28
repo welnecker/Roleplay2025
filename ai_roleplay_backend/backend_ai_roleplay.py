@@ -47,14 +47,7 @@ contador_interacoes = {}
 def call_ai(mensagens, temperature=0.3, max_tokens=280):
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
-        # Corrigindo papéis inválidos
-        mensagens_validas = []
-        for m in mensagens:
-            if m['role'] not in ["system", "user", "assistant", "tool", "function", "developer"]:
-                print(f"[ERRO DE ROLE] Ignorando role inválido: {m['role']}")
-                continue
-            mensagens_validas.append(m)
-
+        mensagens_validas = [m for m in mensagens if m['role'] in ["system", "user", "assistant", "tool", "function", "developer"]]
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=mensagens_validas,
@@ -143,7 +136,7 @@ def chat_with_ai(msg: Message):
 
     try:
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome)
-        historico = aba_personagem.get_all_values()[-5:] if not msg.primeira_interacao else []
+        historico = aba_personagem.get_all_values()[-1:] if not msg.primeira_interacao else []
     except:
         historico = []
 
@@ -188,16 +181,21 @@ def gerar_resumo_ultimas_interacoes(personagem: str):
             for s in reversed(sinopses):
                 if len(s) >= 2 and s[1].strip().lower() != "resumo":
                     return {"resumo": s[1].strip()}
+
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        if len(aba_personagem.get_all_values()) < 3:
+        todas = aba_personagem.get_all_values()
+        linhas_assistant = [l for l in reversed(todas) if len(l) >= 3 and l[1] == "assistant"]
+        if not linhas_assistant:
             dados = carregar_dados_personagem(personagem)
             intro = dados.get("introducao", "").strip()
             if intro:
                 salvar_sinopse(personagem, intro)
                 return {"resumo": intro}
-        ultimas = aba_personagem.get_all_values()[-5:]
-        mensagens = [{"role": l[1], "content": l[2]} for l in ultimas if len(l) >= 3 and l[1] in ["system", "user", "assistant"]]
-        mensagens.insert(0, {"role": "system", "content": "Resuma as últimas interações como se fosse um capítulo anterior de uma história."})
+        ultima = linhas_assistant[0]
+        mensagens = [
+            {"role": "system", "content": "Resuma essa última resposta como se fosse a introdução de um capítulo."},
+            {"role": "assistant", "content": ultima[2]}
+        ]
         resumo = call_ai(mensagens, temperature=0.3, max_tokens=300)
         salvar_sinopse(personagem, resumo)
         return {"resumo": resumo}
