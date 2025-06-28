@@ -134,7 +134,7 @@ def chat_with_ai(msg: Message):
     salvar_dialogo(nome, "user", user_input)
     salvar_dialogo(nome, "assistant", resposta)
 
-    return {"resposta": resposta, "foto": f"{GITHUB_IMG_URL}{nome.strip().lower()}.jpg"}
+    return {"resposta": resposta, "foto": f"{GITHUB_IMG_URL}{nome.strip()}.jpg"}
 
 @app.get("/personagens/")
 def listar_personagens():
@@ -149,7 +149,7 @@ def listar_personagens():
                 "nome": p.get("nome", ""),
                 "descricao": p.get("descrição curta", ""),
                 "idade": p.get("idade", ""),
-                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip().lower()}.jpg"
+                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip()}.jpg"
             })
         return pers
     except Exception as e:
@@ -158,8 +158,23 @@ def listar_personagens():
 @app.get("/intro/")
 def gerar_resumo_ultimas_interacoes(personagem: str):
     try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        ultimas = aba.get_all_values()[-5:]
+        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
+        sinopses = aba_sinopse.get_all_values()
+
+        if sinopses:
+            for s in reversed(sinopses):
+                if len(s) >= 2 and s[1].strip().lower() != "resumo":
+                    return {"resumo": s[1].strip()}
+
+        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        if len(aba_personagem.get_all_values()) < 3:
+            dados = carregar_dados_personagem(personagem)
+            intro = dados.get("introducao", "").strip()
+            if intro:
+                salvar_sinopse(personagem, intro)
+                return {"resumo": intro}
+
+        ultimas = aba_personagem.get_all_values()[-5:]
         mensagens = [{"role": l[1], "content": l[2]} for l in ultimas if len(l) >= 3]
         mensagens.insert(0, {"role": "system", "content": "Resuma as últimas interações como se fosse um capítulo anterior de uma história."})
         resumo = call_ai(mensagens, temperature=0.3, max_tokens=300)
