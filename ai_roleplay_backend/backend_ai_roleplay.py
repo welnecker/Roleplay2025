@@ -155,29 +155,78 @@ def chat_with_ai(message: Message):
         sinopse = gerar_resumo_ultimas_interacoes(personagem)
         memorias = carregar_memorias_do_personagem(personagem)
 
-        user_name = dados.get("user_name", "Usuário")
-        relacionamento = dados.get("relationship", "companheira")
+        nome = dados.get("nome", personagem)
+        idade = dados.get("idade", "").strip()
+        tracos = dados.get("traços físicos", "").strip()
+        relationship = dados.get("relationship", "").strip()
+        user_name = dados.get("user_name", "Usuário").strip()
+        introducao = dados.get("introducao", "").strip()
+        prompt_base = dados.get("prompt_base", "").strip()
+        diretriz_positiva = dados.get("diretriz_positiva", "").strip()
+        diretriz_negativa = dados.get("diretriz_negativa", "").strip()
+        contexto = dados.get("contexto", "").strip()
+        exemplo_narrador = dados.get("exemplo_narrador", "").strip()
+        exemplo_personagem = dados.get("exemplo_personagem", "").strip()
+        exemplo_pensamento = dados.get("exemplo_pensamento", "").strip()
 
-        prompt_base = f"Você é {personagem}, {relacionamento} de {user_name}.\n"
+        if not prompt_base:
+            prompt_base = ""
 
-        caracteristicas = []
-        if dados.get("idade"):
-            caracteristicas.append(f"tem {dados['idade']} anos")
-        if dados.get("traços físicos"):
-            caracteristicas.append(dados["traços físicos"])
-        if dados.get("estilo fala"):
-            caracteristicas.append(f"fala de forma {dados['estilo fala']}")
-        if caracteristicas:
-            prompt_base += f"Você {', '.join(caracteristicas)}.\n"
+            if contexto:
+                prompt_base += f"Contexto atual:
+{contexto}
 
-        prompt_base += "Continue exatamente de onde a história parou. Não reinvente elementos ou reinicie a história.\n"
-        prompt_base += "Nunca contradiga a sinopse fixa inicial, ela define o cenário, a ambientação e o relacionamento.\n"
+"
+
+            prompt_base += f"Você é {nome}, uma mulher de {idade} anos. {tracos}
+"
+            prompt_base += f"Fale com {user_name}, com quem tem uma relação de {relationship}.
+"
+            prompt_base += "Use um estilo envolvente, com narração em terceira pessoa, falas entre aspas, pensamentos entre asteriscos ou travessões, e ações detalhadas emocionalmente."
+
+            if diretriz_positiva:
+                prompt_base += f"
+
+Diretrizes comportamentais:
+- {diretriz_positiva}"
+            if diretriz_negativa:
+                prompt_base += f"
+
+Evite sempre:
+- {diretriz_negativa}"
+
+            if exemplo_narrador or exemplo_personagem or exemplo_pensamento:
+                prompt_base += "
+
+Exemplo de estrutura narrativa:
+"
+                if exemplo_narrador:
+                    prompt_base += f"Narrador: {exemplo_narrador}
+"
+                if exemplo_personagem:
+                    prompt_base += f"Personagem: {exemplo_personagem}
+"
+                if exemplo_pensamento:
+                    prompt_base += f"Pensamento: {exemplo_pensamento}
+"
+                prompt_base += "Use este estilo em todas as respostas."
+
         if sinopse:
-            prompt_base += f"Resumo recente: {sinopse}\n"
+            prompt_base += f"
+
+Resumo recente:
+{sinopse}"
         if memorias:
-            prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
+            prompt_base += "
+
+Memórias importantes:
+" + "
+".join(memorias)
 
         mensagens = [
+            {"role": "system", "content": prompt_base},
+            {"role": "user", "content": entrada_usuario}
+        ]
             {"role": "system", "content": prompt_base},
             {"role": "user", "content": entrada_usuario}
         ]
