@@ -100,6 +100,31 @@ def salvar_sinopse(nome_personagem: str, texto: str):
     except Exception as e:
         print(f"[ERRO ao salvar sinopse] {e}")
 
+def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
+    try:
+        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
+        sinopses = aba_sinopse.get_all_values()
+        if sinopses:
+            for s in reversed(sinopses):
+                if len(s) >= 2 and s[1].strip().lower() != "resumo":
+                    return s[1].strip()
+        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
+        if len(aba_personagem.get_all_values()) < 3:
+            dados = carregar_dados_personagem(nome_personagem)
+            intro = dados.get("introducao", "").strip()
+            if intro:
+                salvar_sinopse(nome_personagem, intro)
+                return intro
+        ultimas = aba_personagem.get_all_values()[-5:]
+        mensagens = [{"role": l[1], "content": l[2]} for l in ultimas if len(l) >= 3]
+        mensagens.insert(0, {"role": "system", "content": "Resuma as últimas interações como se fosse um capítulo anterior de uma história."})
+        resumo = call_ai(mensagens, temperature=0.3, max_tokens=300)
+        salvar_sinopse(nome_personagem, resumo)
+        return resumo
+    except Exception as e:
+        print(f"[ERRO gerar_resumo_ultimas_interacoes] {e}")
+        return ""
+
 @app.post("/chat/")
 def chat_with_ai(msg: Message):
     nome = msg.personagem
@@ -164,7 +189,7 @@ def listar_personagens():
         return JSONResponse(content={"erro": str(e)}, status_code=500)
 
 @app.get("/intro/")
-def gerar_resumo_ultimas_interacoes(personagem: str):
+def obter_intro_personagem(personagem: str):
     try:
         aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
         sinopses = aba_sinopse.get_all_values()
