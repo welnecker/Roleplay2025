@@ -108,69 +108,37 @@ def chat_with_ai(msg: Message):
     if not nome or not user_input:
         return JSONResponse(content={"erro": "Personagem e mensagem são obrigatórios."}, status_code=400)
 
-    # Carrega dados do personagem e valida
     dados = carregar_dados_personagem(nome)
     if not dados:
         return JSONResponse(content={"erro": "Personagem não encontrado."}, status_code=404)
 
-    # Gera sinopse (resumo das últimas interações ou introdução)
     sinopse = gerar_resumo_ultimas_interacoes(nome)
-    # Carrega memórias (detalhes importantes)
     memorias = carregar_memorias_do_personagem(nome)
 
-    # Monta prompt com diretrizes, exemplos e contexto
-    prompt_base += "
-
-Diretrizes:
-" + diretriz_positiva + "
-
-Evite:
-" + diretriz_negativa
-    prompt_base += "
-
-Exemplo de narração:
-" + exemplo_narrador + "
-
-Exemplo de fala:
-" + exemplo_personagem + "
-
-Exemplo de pensamento:
-" + exemplo_pensamento
-    if contexto:
-        prompt_base += "
-
-Contexto atual:
-" + contexto
+    prompt_base = f"Você é {nome}, {dados.get('relationship','companheira')} de {dados.get('user_name','usuário')}\n"
+    prompt_base += "\nDiretrizes:\n" + dados.get('diretriz_positiva','')
+    prompt_base += "\nEvite:\n" + dados.get('diretriz_negativa','')
+    prompt_base += "\n\nExemplo de narração:\n" + dados.get('exemplo','')
+    prompt_base += "\n\nContexto atual:\n" + dados.get('contexto','')
     if sinopse:
-        prompt_base += "
-
-Resumo recente:
-" + sinopse
+        prompt_base += "\n\nResumo recente:\n" + sinopse
     if memorias:
-        prompt_base += "
+        prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
 
-Memórias importantes:
-" + "
-".join(memorias)
-
-    # Prepara histórico de diálogo
     try:
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome)
         historico = aba_personagem.get_all_values()[-5:] if not msg.primeira_interacao else []
     except:
         historico = []
 
-    # Monta mensagens para a IA
     mensagens = [{"role": "system", "content": prompt_base}]
     for linha in historico:
         if len(linha) >= 3:
             mensagens.append({"role": linha[1], "content": linha[2]})
     mensagens.append({"role": "user", "content": user_input})
 
-    # Chama a IA
     resposta = call_ai(mensagens)
 
-    # Salva no Google Sheets
     salvar_dialogo(nome, "user", user_input)
     salvar_dialogo(nome, "assistant", resposta)
 
