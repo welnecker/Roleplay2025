@@ -227,9 +227,6 @@ Memórias importantes:
             {"role": "system", "content": prompt_base},
             {"role": "user", "content": entrada_usuario}
         ]
-            {"role": "system", "content": prompt_base},
-            {"role": "user", "content": entrada_usuario}
-        ]
 
         resposta = call_ai(mensagens)
         salvar_dialogo(personagem, "user", entrada_usuario)
