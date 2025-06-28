@@ -151,7 +151,17 @@ def listar_personagens():
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
-        return [{"nome": p.get("nome", ""), "foto": f"{GITHUB_IMG_URL}{p.get('nome','').lower()}.jpg"} for p in dados if p.get("usar", "").strip().lower() == "sim"]
+        pers = []
+        for p in dados:
+            if str(p.get("usar", "")).strip().lower() != "sim":
+                continue
+            pers.append({
+                "nome": p.get("nome", ""),
+                "descricao": p.get("descrição curta", ""),
+                "idade": p.get("idade", ""),
+                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip().lower()}.jpg"
+            })
+        return pers
     except Exception as e:
         return JSONResponse(content={"erro": str(e)}, status_code=500)
 
