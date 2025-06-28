@@ -62,14 +62,24 @@ def carregar_dados_personagem(nome_personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
-        if dados:
-            for p in dados:
-                if p.get('nome','').strip().lower() == nome_personagem.strip().lower():
-                    return p
+        for p in dados:
+            if p.get('nome','').strip().lower() == nome_personagem.strip().lower():
+                return p
         return {}
     except Exception as e:
         print(f"[ERRO ao carregar dados do personagem] {e}")
         return {}
+
+def carregar_memorias_do_personagem(nome_personagem: str):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias")
+        todas = aba.get_all_records()
+        filtradas = [m for m in todas if m.get('personagem','').strip().lower() == nome_personagem.strip().lower()]
+        filtradas.sort(key=lambda m: datetime.strptime(m.get('data', ''), "%Y-%m-%d"), reverse=True)
+        return [f"[{m.get('tipo','')}] ({m.get('emoção','')}) {m.get('titulo','')} - {m.get('data','')}: {m.get('conteudo','')} (Relevância: {m.get('relevância','')})" for m in filtradas]
+    except Exception as e:
+        print(f"[ERRO ao carregar memórias] {e}")
+        return []
 
 def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     try:
@@ -103,10 +113,9 @@ def chat_with_ai(msg: Message):
         return JSONResponse(content={"erro": "Personagem não encontrado."}, status_code=404)
 
     sinopse = None
-    try:
-        sinopse = carregar_memorias_do_personagem(nome)
-    except:
-        sinopse = None
+    memorias = carregar_memorias_do_personagem(nome)
+    if memorias:
+        sinopse = memorias[0]
 
     prompt_base = dados.get("prompt_base", "")
     contexto = dados.get("contexto", "")
@@ -126,17 +135,13 @@ def chat_with_ai(msg: Message):
     except:
         historico = []
 
-    mensagens = [
-        {"role": "system", "content": prompt_base}
-    ]
-
+    mensagens = [{"role": "system", "content": prompt_base}]
     for linha in historico:
         if len(linha) >= 3:
             mensagens.append({"role": linha[1], "content": linha[2]})
-
     mensagens.append({"role": "user", "content": user_input})
-    resposta = call_ai(mensagens)
 
+    resposta = call_ai(mensagens)
     salvar_dialogo(nome, "user", user_input)
     salvar_dialogo(nome, "assistant", resposta)
 
@@ -166,12 +171,22 @@ def gerar_resumo_ultimas_interacoes(personagem: str):
     try:
         aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
         sinopses = aba_sinopse.get_all_values()
-
         if sinopses:
             for s in reversed(sinopses):
                 if len(s) >= 2 and s[1].strip().lower() != "resumo":
                     return {"resumo": s[1].strip()}
-
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        if len(aba_personagem.get_all
-```
+        if len(aba_personagem.get_all_values()) < 3:
+            dados = carregar_dados_personagem(personagem)
+            intro = dados.get("introducao", "").strip()
+            if intro:
+                salvar_sinopse(personagem, intro)
+                return {"resumo": intro}
+        ultimas = aba_personagem.get_all_values()[-5:]
+        mensagens = [{"role": l[1], "content": l[2]} for l in ultimas if len(l) >= 3]
+        mensagens.insert(0, {"role": "system", "content": "Resuma as últimas interações como se fosse um capítulo anterior de uma história."})
+        resumo = call_ai(mensagens, temperature=0.3, max_tokens=300)
+        salvar_sinopse(personagem, resumo)
+        return {"resumo": resumo}
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
