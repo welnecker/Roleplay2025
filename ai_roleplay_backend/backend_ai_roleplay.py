@@ -119,42 +119,33 @@ def chat_with_ai(msg: Message):
     memorias = carregar_memorias_do_personagem(nome)
 
     # Monta prompt com diretrizes, exemplos e contexto
-    prompt_base = dados.get("prompt_base", "")
-    contexto = dados.get("contexto", "")
-    diretriz_positiva = dados.get("diretriz_positiva", "")
-    diretriz_negativa = dados.get("diretriz_negativa", "")
-    exemplo_narrador = dados.get("exemplo_narrador", "")
-    exemplo_personagem = dados.get("exemplo_personagem", "")
-    exemplo_pensamento = dados.get("exemplo_pensamento", "")
-
-    # Adiciona instruções ao prompt
-    prompt_base += f"
+    prompt_base += "
 
 Diretrizes:
-{diretriz_positiva}
+" + diretriz_positiva + "
 
 Evite:
-{diretriz_negativa}"
-    prompt_base += f"
+" + diretriz_negativa
+    prompt_base += "
 
 Exemplo de narração:
-{exemplo_narrador}
+" + exemplo_narrador + "
 
 Exemplo de fala:
-{exemplo_personagem}
+" + exemplo_personagem + "
 
 Exemplo de pensamento:
-{exemplo_pensamento}"
+" + exemplo_pensamento
     if contexto:
-        prompt_base += f"
+        prompt_base += "
 
 Contexto atual:
-{contexto}"
+" + contexto
     if sinopse:
-        prompt_base += f"
+        prompt_base += "
 
 Resumo recente:
-{sinopse}"
+" + sinopse
     if memorias:
         prompt_base += "
 
