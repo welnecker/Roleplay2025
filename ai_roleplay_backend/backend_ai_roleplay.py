@@ -47,9 +47,17 @@ contador_interacoes = {}
 def call_ai(mensagens, temperature=0.3, max_tokens=280):
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
+        # Corrigindo papéis inválidos
+        mensagens_validas = []
+        for m in mensagens:
+            if m['role'] not in ["system", "user", "assistant", "tool", "function", "developer"]:
+                print(f"[ERRO DE ROLE] Ignorando role inválido: {m['role']}")
+                continue
+            mensagens_validas.append(m)
+
         response = client.chat.completions.create(
             model="gpt-4o",
-            messages=mensagens,
+            messages=mensagens_validas,
             temperature=temperature,
             max_tokens=max_tokens,
         )
@@ -141,7 +149,7 @@ def chat_with_ai(msg: Message):
 
     mensagens = [{"role": "system", "content": prompt_base}]
     for linha in historico:
-        if len(linha) >= 3:
+        if len(linha) >= 3 and linha[1] in ["system", "user", "assistant"]:
             mensagens.append({"role": linha[1], "content": linha[2]})
     mensagens.append({"role": "user", "content": user_input})
 
@@ -188,7 +196,7 @@ def gerar_resumo_ultimas_interacoes(personagem: str):
                 salvar_sinopse(personagem, intro)
                 return {"resumo": intro}
         ultimas = aba_personagem.get_all_values()[-5:]
-        mensagens = [{"role": l[1], "content": l[2]} for l in ultimas if len(l) >= 3]
+        mensagens = [{"role": l[1], "content": l[2]} for l in ultimas if len(l) >= 3 and l[1] in ["system", "user", "assistant"]]
         mensagens.insert(0, {"role": "system", "content": "Resuma as últimas interações como se fosse um capítulo anterior de uma história."})
         resumo = call_ai(mensagens, temperature=0.3, max_tokens=300)
         salvar_sinopse(personagem, resumo)
