@@ -102,6 +102,12 @@ def chat_with_ai(msg: Message):
     if not dados:
         return JSONResponse(content={"erro": "Personagem não encontrado."}, status_code=404)
 
+    sinopse = None
+    try:
+        sinopse = carregar_memorias_do_personagem(nome)
+    except:
+        sinopse = None
+
     prompt_base = dados.get("prompt_base", "")
     contexto = dados.get("contexto", "")
     diretriz_positiva = dados.get("diretriz_positiva", "")
@@ -134,7 +140,7 @@ def chat_with_ai(msg: Message):
     salvar_dialogo(nome, "user", user_input)
     salvar_dialogo(nome, "assistant", resposta)
 
-    return {"resposta": resposta, "foto": f"{GITHUB_IMG_URL}{nome.strip()}.jpg"}
+    return {"response": resposta, "sinopse": sinopse}
 
 @app.get("/personagens/")
 def listar_personagens():
@@ -167,18 +173,5 @@ def gerar_resumo_ultimas_interacoes(personagem: str):
                     return {"resumo": s[1].strip()}
 
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        if len(aba_personagem.get_all_values()) < 3:
-            dados = carregar_dados_personagem(personagem)
-            intro = dados.get("introducao", "").strip()
-            if intro:
-                salvar_sinopse(personagem, intro)
-                return {"resumo": intro}
-
-        ultimas = aba_personagem.get_all_values()[-5:]
-        mensagens = [{"role": l[1], "content": l[2]} for l in ultimas if len(l) >= 3]
-        mensagens.insert(0, {"role": "system", "content": "Resuma as últimas interações como se fosse um capítulo anterior de uma história."})
-        resumo = call_ai(mensagens, temperature=0.3, max_tokens=300)
-        salvar_sinopse(personagem, resumo)
-        return {"resumo": resumo}
-    except Exception as e:
-        return JSONResponse(content={"erro": str(e)}, status_code=500)
+        if len(aba_personagem.get_all
+```
