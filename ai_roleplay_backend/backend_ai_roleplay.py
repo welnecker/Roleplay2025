@@ -56,7 +56,7 @@ def call_ai(mensagens, temperature=0.3, max_tokens=280):
         return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"[ERRO no call_ai] {e}")
-        return "Desculpe, tive um problema para responder agora. Pode tentar novamente?"
+        return f"Erro ao chamar IA: {e}"
 
 def carregar_dados_personagem(nome_personagem: str):
     try:
@@ -128,7 +128,7 @@ def chat_with_ai(msg: Message):
         prompt_base += "\n\nExemplo de pensamento:\n" + dados['exemplo_pensamento']
     if dados.get('contexto'):
         prompt_base += "\n\nContexto atual:\n" + dados['contexto']
-    if sinopse:
+    if sinopse and isinstance(sinopse, dict):
         prompt_base += "\n\nResumo recente:\n" + sinopse.get("resumo", "")
     if memorias:
         prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
@@ -150,7 +150,7 @@ def chat_with_ai(msg: Message):
     salvar_dialogo(nome, "user", user_input)
     salvar_dialogo(nome, "assistant", resposta)
 
-    return {"response": resposta, "sinopse": sinopse.get("resumo", "")}
+    return {"response": resposta, "sinopse": sinopse.get("resumo", "") if isinstance(sinopse, dict) else ""}
 
 @app.get("/personagens/")
 def listar_personagens():
