@@ -56,7 +56,7 @@ def call_ai(mensagens, temperature=0.3, max_tokens=280):
         return response.choices[0].message.content.strip()
     except Exception as e:
         print(f"[ERRO no call_ai] {e}")
-        return ""
+        return "Desculpe, tive um problema para responder agora. Pode tentar novamente?"
 
 def carregar_dados_personagem(nome_personagem: str):
     try:
@@ -100,31 +100,6 @@ def salvar_sinopse(nome_personagem: str, texto: str):
     except Exception as e:
         print(f"[ERRO ao salvar sinopse] {e}")
 
-def gerar_resumo_ultimas_interacoes(nome_personagem: str) -> str:
-    try:
-        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{nome_personagem}_sinopse")
-        sinopses = aba_sinopse.get_all_values()
-        if sinopses:
-            for s in reversed(sinopses):
-                if len(s) >= 2 and s[1].strip().lower() != "resumo":
-                    return s[1].strip()
-        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome_personagem)
-        if len(aba_personagem.get_all_values()) < 3:
-            dados = carregar_dados_personagem(nome_personagem)
-            intro = dados.get("introducao", "").strip()
-            if intro:
-                salvar_sinopse(nome_personagem, intro)
-                return intro
-        ultimas = aba_personagem.get_all_values()[-5:]
-        mensagens = [{"role": l[1], "content": l[2]} for l in ultimas if len(l) >= 3]
-        mensagens.insert(0, {"role": "system", "content": "Resuma as últimas interações como se fosse um capítulo anterior de uma história."})
-        resumo = call_ai(mensagens, temperature=0.3, max_tokens=300)
-        salvar_sinopse(nome_personagem, resumo)
-        return resumo
-    except Exception as e:
-        print(f"[ERRO gerar_resumo_ultimas_interacoes] {e}")
-        return ""
-
 @app.post("/chat/")
 def chat_with_ai(msg: Message):
     nome = msg.personagem
@@ -141,12 +116,20 @@ def chat_with_ai(msg: Message):
     memorias = carregar_memorias_do_personagem(nome)
 
     prompt_base = f"Você é {nome}, {dados.get('relationship','companheira')} de {dados.get('user_name','usuário')}\n"
-    prompt_base += "\nDiretrizes:\n" + dados.get('diretriz_positiva','')
-    prompt_base += "\nEvite:\n" + dados.get('diretriz_negativa','')
-    prompt_base += "\n\nExemplo de narração:\n" + dados.get('exemplo','')
-    prompt_base += "\n\nContexto atual:\n" + dados.get('contexto','')
+    if dados.get('diretriz_positiva'):
+        prompt_base += "\nDiretrizes:\n" + dados['diretriz_positiva']
+    if dados.get('diretriz_negativa'):
+        prompt_base += "\nEvite:\n" + dados['diretriz_negativa']
+    if dados.get('exemplo_narrador'):
+        prompt_base += "\n\nExemplo de narração:\n" + dados['exemplo_narrador']
+    if dados.get('exemplo_personagem'):
+        prompt_base += "\n\nExemplo de fala:\n" + dados['exemplo_personagem']
+    if dados.get('exemplo_pensamento'):
+        prompt_base += "\n\nExemplo de pensamento:\n" + dados['exemplo_pensamento']
+    if dados.get('contexto'):
+        prompt_base += "\n\nContexto atual:\n" + dados['contexto']
     if sinopse:
-        prompt_base += "\n\nResumo recente:\n" + sinopse
+        prompt_base += "\n\nResumo recente:\n" + sinopse.get("resumo", "")
     if memorias:
         prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
 
@@ -167,7 +150,7 @@ def chat_with_ai(msg: Message):
     salvar_dialogo(nome, "user", user_input)
     salvar_dialogo(nome, "assistant", resposta)
 
-    return {"response": resposta, "sinopse": sinopse}
+    return {"response": resposta, "sinopse": sinopse.get("resumo", "")}
 
 @app.get("/personagens/")
 def listar_personagens():
@@ -189,7 +172,7 @@ def listar_personagens():
         return JSONResponse(content={"erro": str(e)}, status_code=500)
 
 @app.get("/intro/")
-def obter_intro_personagem(personagem: str):
+def gerar_resumo_ultimas_interacoes(personagem: str):
     try:
         aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
         sinopses = aba_sinopse.get_all_values()
