@@ -175,15 +175,15 @@ def listar_personagens():
 @app.get("/intro/")
 def gerar_resumo_ultimas_interacoes(personagem: str):
     try:
-        aba_sinopse = gsheets_client.open_by_key(PLANILHA_ID).worksheet(f"{personagem}_sinopse")
-        sinopses = aba_sinopse.get_all_values()
-        if sinopses:
-            for s in reversed(sinopses):
-                if len(s) >= 2 and s[1].strip().lower() != "resumo":
-                    return {"resumo": s[1].strip()}
-
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         todas = aba_personagem.get_all_values()
+        if not todas:
+            dados = carregar_dados_personagem(personagem)
+            intro = dados.get("introducao", "").strip()
+            if intro:
+                salvar_sinopse(personagem, intro)
+                return {"resumo": intro}
+
         linhas_assistant = [l for l in reversed(todas) if len(l) >= 3 and l[1] == "assistant"]
         if not linhas_assistant:
             dados = carregar_dados_personagem(personagem)
@@ -191,6 +191,7 @@ def gerar_resumo_ultimas_interacoes(personagem: str):
             if intro:
                 salvar_sinopse(personagem, intro)
                 return {"resumo": intro}
+
         ultima = linhas_assistant[0]
         mensagens = [
             {"role": "system", "content": "Resuma essa última resposta como se fosse a introdução de um capítulo."},
