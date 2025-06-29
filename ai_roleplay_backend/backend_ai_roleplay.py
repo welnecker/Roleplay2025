@@ -134,6 +134,8 @@ def chat_with_ai(msg: Message):
     if memorias:
         prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
 
+    prompt_base += "\n\n⚠️ Em interações simples ou rotineiras, como comentários sobre o ambiente ou ações cotidianas, seja mais direta e breve. Reserve longas descrições ou emoções intensas apenas para momentos significativos."
+
     try:
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome)
         historico = aba_personagem.get_all_values()[-1:] if not msg.primeira_interacao else []
