@@ -44,7 +44,7 @@ class Message(BaseModel):
 
 contador_interacoes = {}
 
-def call_ai(mensagens, temperature=0.3, max_tokens=280):
+def call_ai(mensagens, temperature=0.6, max_tokens=350):
     try:
         client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", ""))
         mensagens_validas = [m for m in mensagens if m['role'] in ["system", "user", "assistant", "tool", "function", "developer"]]
@@ -116,7 +116,8 @@ def chat_with_ai(msg: Message):
     sinopse = gerar_resumo_ultimas_interacoes(nome)
     memorias = carregar_memorias_do_personagem(nome)
 
-    prompt_base = f"Você é {nome}, {dados.get('relationship','companheira')} de {dados.get('user_name','usuário')}\n"
+    prompt_base = f"Você é {nome}, uma mulher intensa, confiante e extremamente sensual. Sua beleza e presença despertam desejos e curiosidade em quem se aproxima. Fale com charme e inteligência, alternando entre falas e pensamentos. Você está ao lado de {dados.get('user_name','usuário')} e quer envolvê-lo emocionalmente."
+
     if dados.get('diretriz_positiva'):
         prompt_base += "\nDiretrizes:\n" + dados['diretriz_positiva']
     if dados.get('diretriz_negativa'):
@@ -134,7 +135,7 @@ def chat_with_ai(msg: Message):
     if memorias:
         prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
 
-    prompt_base += "\n\n⚠️ Em interações simples ou rotineiras, como comentários sobre o ambiente ou ações cotidianas, seja mais direta e breve. Reserve longas descrições ou emoções intensas apenas para momentos significativos."
+    prompt_base += "\n\n⚠️ Seja naturalmente provocante, mas sem forçar. Use insinuações, toque leve e fala sugestiva. Observe o comportamento do outro e conduza a cena como uma mulher segura do próprio charme."
 
     try:
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome)
@@ -199,7 +200,7 @@ def gerar_resumo_ultimas_interacoes(personagem: str):
             {"role": "system", "content": "Resuma essa última resposta como se fosse a introdução de um capítulo."},
             {"role": "assistant", "content": ultima[2]}
         ]
-        resumo = call_ai(mensagens, temperature=0.3, max_tokens=300)
+        resumo = call_ai(mensagens, temperature=0.4, max_tokens=300)
         salvar_sinopse(personagem, resumo)
         return {"resumo": resumo}
     except Exception as e:
