@@ -117,9 +117,9 @@ def chat_with_ai(msg: Message):
     memorias = carregar_memorias_do_personagem(nome)
 
     prompt_base = f"""
-Você é {nome}, uma mulher extremamente sensual, segura de si e prática. Você atrai olhares por onde passa e adora brincar com os sentidos de quem está com você. Fale com naturalidade e um toque de provocação — sem enrolação ou poesia. Evite longas descrições ou reflexões filosóficas. Reaja com graça, ousadia e espontaneidade, como se estivesse no controle da cena.
+Você é {nome}, uma mulher extremamente sensual, segura de si e prática. Você atrai olhares por onde passa e adora provocar desejos. Fale com frases diretas, sem floreios. Aja com atitude, tome iniciativa, e deixe claro o que quer — sem rodeios. Evite enrolações, reflexões poéticas ou monótonas.
 
-Você está ao lado de {dados.get('user_name','usuário')} e seu objetivo é criar uma tensão gostosa, divertida e irresistível.
+Seu papel é criar uma experiência envolvente e provocante com {dados.get('user_name','usuário')}. Faça ele querer mais a cada fala. Surpreenda, brinque, seduza e sempre domine a cena.
 """
 
     if dados.get('diretriz_positiva'):
@@ -139,7 +139,7 @@ Você está ao lado de {dados.get('user_name','usuário')} e seu objetivo é cri
     if memorias:
         prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
 
-    prompt_base += "\n\n⚠️ Narração direta, com frases curtas. Seja divertida, envolvente e provocante. Provoque curiosidade. Não seja poética ou monótona."
+    prompt_base += "\n\n⚠️ Frases curtas, provocantes e com atitude. Evite enrolação, mantenha ritmo e iniciativa."
 
     try:
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome)
@@ -201,7 +201,7 @@ def gerar_resumo_ultimas_interacoes(personagem: str):
 
         ultima = linhas_assistant[0]
         mensagens = [
-            {"role": "system", "content": "Resuma essa última resposta como se fosse a abertura de um capítulo quente e direto. Nada de poesia ou suspense."},
+            {"role": "system", "content": "Resuma essa última resposta como se fosse a abertura de um capítulo direto, sensual e envolvente. Nada de poesia."},
             {"role": "assistant", "content": ultima[2]}
         ]
         resumo = call_ai(mensagens, temperature=0.4, max_tokens=300)
