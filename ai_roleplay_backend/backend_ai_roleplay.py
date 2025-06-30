@@ -121,3 +121,30 @@ def expandir_prompt_com_dados(dados: dict, prompt_base: str) -> str:
     if dados.get('relationship'):
         prompt_base += f"\nTipo de relação com {dados.get('user_name', 'usuário')}: {dados['relationship']}"
     return prompt_base
+
+# === FUNÇÃO CENTRAL QUE USA OS DADOS DO PERSONAGEM ===
+
+@app.post("/chat/")
+async def chat_with_ai(mensagem: Message):
+    personagem = mensagem.personagem
+    user_input = mensagem.user_input
+
+    dados = carregar_dados_personagem(personagem)
+    if not dados:
+        return JSONResponse(content={"error": "Nenhum personagem encontrado"}, status_code=400)
+
+    prompt = expandir_prompt_com_dados(dados, dados.get("prompt_base", ""))
+    memoria = carregar_memorias_do_personagem(personagem)
+
+    mensagens = []
+    mensagens.append({"role": "system", "content": prompt})
+    if memoria:
+        mensagens.append({"role": "system", "content": "Memórias relevantes:\n" + "\n".join(memoria)})
+
+    mensagens.append({"role": "user", "content": user_input})
+
+    resposta = call_ai(mensagens)
+    salvar_dialogo(personagem, "user", user_input)
+    salvar_dialogo(personagem, "assistant", resposta)
+
+    return {"resposta": resposta}
