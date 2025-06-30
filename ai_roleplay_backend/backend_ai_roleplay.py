@@ -199,4 +199,13 @@ def gerar_resumo_ultimas_interacoes(personagem: str):
                 salvar_sinopse(personagem, intro)
                 return {"resumo": intro}
 
-        ultima = linh
+        ultima = linhas_assistant[0]
+        mensagens = [
+            {"role": "system", "content": "Resuma essa última resposta como se fosse a abertura de um capítulo direto, sensual e envolvente. Nada de poesia."},
+            {"role": "assistant", "content": ultima[2]}
+        ]
+        resumo = call_ai(mensagens, temperature=0.4, max_tokens=300)
+        salvar_sinopse(personagem, resumo)
+        return {"resumo": resumo}
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
