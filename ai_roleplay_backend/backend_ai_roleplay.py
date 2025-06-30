@@ -44,19 +44,39 @@ class Message(BaseModel):
 
 contador_interacoes = {}
 
+#def call_ai(mensagens, temperature=0.6, max_tokens=350):
+ #   try:
+  #      response = requests.post(
+   #         "http://127.0.0.1:1234/v1/chat/completions",
+    #        headers={"Content-Type": "application/json"},
+     #       json={
+      #          "model": "llama-3-8b-lexi-uncensored",
+       #         "messages": mensagens,
+        #        "temperature": temperature,
+         #       "top_p": 0.95,
+          #      "max_tokens": max_tokens
+           # }
+        #)
+
+import openai  # certifique-se de que openai>=1.0.0 está instalado
+
+# Configure sua chave no ambiente
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 def call_ai(mensagens, temperature=0.6, max_tokens=350):
     try:
-        response = requests.post(
-            "http://127.0.0.1:1234/v1/chat/completions",
-            headers={"Content-Type": "application/json"},
-            json={
-                "model": "llama-3-8b-lexi-uncensored",
-                "messages": mensagens,
-                "temperature": temperature,
-                "top_p": 0.95,
-                "max_tokens": max_tokens
-            }
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # ou "gpt-3.5-turbo" se preferir
+            messages=mensagens,
+            temperature=temperature,
+            top_p=0.95,
+            max_tokens=max_tokens
         )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        print(f"[ERRO no call_ai - OpenAI] {e}")
+        return f"Erro ao chamar OpenAI: {e}"
+
         resposta = response.json()
         return resposta['choices'][0]['message']['content'].strip()
     except Exception as e:
