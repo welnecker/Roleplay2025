@@ -64,7 +64,7 @@ def carregar_dados_personagem(nome_personagem: str):
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
         for p in dados:
-            if p.get('nome','').strip().lower() == nome_personagem.strip().lower():
+            if p.get('nome','').strip().lower() == nome_personagem.strip().lower() and str(p.get('usar', '')).strip().lower() == "sim":
                 return p
         return {}
     except Exception as e:
@@ -81,6 +81,20 @@ def carregar_memorias_do_personagem(nome_personagem: str):
     except Exception as e:
         print(f"[ERRO ao carregar memórias] {e}")
         return []
+
+def carregar_json_por_gatilho(nome_personagem: str, user_input: str):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("narrativas")
+        linhas = aba.get_all_records()
+        for linha in linhas:
+            if linha.get("personagem", "").strip().lower() == nome_personagem.strip().lower():
+                gatilho = linha.get("gatilho", "").strip().lower()
+                if gatilho and gatilho in user_input.lower():
+                    return linha.get("json", "")
+        return None
+    except Exception as e:
+        print(f"[ERRO ao carregar narrativa por gatilho] {e}")
+        return None
 
 def salvar_dialogo(nome_personagem: str, role: str, conteudo: str):
     try:
@@ -100,6 +114,56 @@ def salvar_sinopse(nome_personagem: str, texto: str):
             aba.append_row([datetime.now().strftime("%Y-%m-%d %H:%M:%S"), texto, len(texto)])
     except Exception as e:
         print(f"[ERRO ao salvar sinopse] {e}")
+
+@app.get("/intro/")
+def gerar_resumo_ultimas_interacoes(personagem: str):
+    try:
+        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        todas = aba_personagem.get_all_values()
+        if not todas:
+            dados = carregar_dados_personagem(personagem)
+            intro = dados.get("introducao", "").strip()
+            if intro:
+                salvar_sinopse(personagem, intro)
+                return {"resumo": intro}
+
+        linhas_assistant = [l for l in reversed(todas) if len(l) >= 3 and l[1] == "assistant"]
+        if not linhas_assistant:
+            dados = carregar_dados_personagem(personagem)
+            intro = dados.get("introducao", "").strip()
+            if intro:
+                salvar_sinopse(personagem, intro)
+                return {"resumo": intro}
+
+        ultima = linhas_assistant[0]
+        mensagens = [
+            {"role": "system", "content": "Resuma essa última resposta como se fosse a abertura de um capítulo direto, sensual e envolvente. Nada de poesia."},
+            {"role": "assistant", "content": ultima[2]}
+        ]
+        resumo = call_ai(mensagens, temperature=0.4, max_tokens=300)
+        salvar_sinopse(personagem, resumo)
+        return {"resumo": resumo}
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
+
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        pers = []
+        for p in dados:
+            if str(p.get("usar", "")).strip().lower() != "sim":
+                continue
+            pers.append({
+                "nome": p.get("nome", ""),
+                "descricao": p.get("descrição curta", ""),
+                "idade": p.get("idade", ""),
+                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip()}.jpg"
+            })
+        return pers
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
 
 @app.post("/chat/")
 def chat_with_ai(msg: Message):
@@ -159,53 +223,3 @@ Seu papel é criar uma experiência envolvente e provocante com {dados.get('user
     salvar_dialogo(nome, "assistant", resposta)
 
     return {"response": resposta, "sinopse": sinopse.get("resumo", "") if isinstance(sinopse, dict) else ""}
-
-@app.get("/personagens/")
-def listar_personagens():
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = aba.get_all_records()
-        pers = []
-        for p in dados:
-            if str(p.get("usar", "")).strip().lower() != "sim":
-                continue
-            pers.append({
-                "nome": p.get("nome", ""),
-                "descricao": p.get("descrição curta", ""),
-                "idade": p.get("idade", ""),
-                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip()}.jpg"
-            })
-        return pers
-    except Exception as e:
-        return JSONResponse(content={"erro": str(e)}, status_code=500)
-
-@app.get("/intro/")
-def gerar_resumo_ultimas_interacoes(personagem: str):
-    try:
-        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        todas = aba_personagem.get_all_values()
-        if not todas:
-            dados = carregar_dados_personagem(personagem)
-            intro = dados.get("introducao", "").strip()
-            if intro:
-                salvar_sinopse(personagem, intro)
-                return {"resumo": intro}
-
-        linhas_assistant = [l for l in reversed(todas) if len(l) >= 3 and l[1] == "assistant"]
-        if not linhas_assistant:
-            dados = carregar_dados_personagem(personagem)
-            intro = dados.get("introducao", "").strip()
-            if intro:
-                salvar_sinopse(personagem, intro)
-                return {"resumo": intro}
-
-        ultima = linhas_assistant[0]
-        mensagens = [
-            {"role": "system", "content": "Resuma essa última resposta como se fosse a abertura de um capítulo direto, sensual e envolvente. Nada de poesia."},
-            {"role": "assistant", "content": ultima[2]}
-        ]
-        resumo = call_ai(mensagens, temperature=0.4, max_tokens=300)
-        salvar_sinopse(personagem, resumo)
-        return {"resumo": resumo}
-    except Exception as e:
-        return JSONResponse(content={"erro": str(e)}, status_code=500)
