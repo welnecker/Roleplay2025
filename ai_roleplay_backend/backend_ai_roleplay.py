@@ -207,11 +207,11 @@ Seu papel é criar uma experiência envolvente e provocante com {dados.get('user
     if dados.get('diretriz_negativa'):
         prompt_base += "\nEvite:\n" + dados['diretriz_negativa']
     if dados.get('exemplo_narrador'):
-        prompt_base += "\n\nExemplo de narração:\n" + dados['exemplo_narrador']
+        prompt_base += "\n\nEstilo do narrador:\n" + dados['exemplo_narrador']
     if dados.get('exemplo_personagem'):
-        prompt_base += "\n\nExemplo de fala:\n" + dados['exemplo_personagem']
+        prompt_base += "\n\nEstilo da fala da personagem:\n" + dados['exemplo_personagem']
     if dados.get('exemplo_pensamento'):
-        prompt_base += "\n\nExemplo de pensamento:\n" + dados['exemplo_pensamento']
+        prompt_base += "\n\nEstilo dos pensamentos:\n" + dados['exemplo_pensamento']
     if dados.get('contexto'):
         prompt_base += "\n\nContexto atual:\n" + dados['contexto']
     if sinopse and isinstance(sinopse, dict):
@@ -219,7 +219,7 @@ Seu papel é criar uma experiência envolvente e provocante com {dados.get('user
     if memorias:
         prompt_base += "\n\nMemórias importantes:\n" + "\n".join(memorias)
 
-    prompt_base += "\n\n⚠️ Frases curtas, provocantes e com atitude. Evite enrolação, mantenha ritmo e iniciativa."
+    prompt_base += "\n\n⚠️ Sua resposta deve seguir sempre este padrão: primeiro um parágrafo de narração, depois um parágrafo de pensamento (entre asteriscos), e por fim a fala da personagem."
 
     try:
         aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(nome)
