@@ -180,6 +180,22 @@ def chat_with_ai(msg: Message):
     sinopse = gerar_resumo_ultimas_interacoes(nome)
     memorias = carregar_memorias_do_personagem(nome)
 
+    # Verifica se há narrativa especial via JSON
+    json_file = carregar_json_por_gatilho(nome, user_input)
+    if json_file:
+        try:
+            with open(f"narrativas/{json_file}", "r", encoding="utf-8") as f:
+                narrativa = json.load(f)
+                fala = narrativa.get("fala", "")
+                pensamento = narrativa.get("pensamento", "")
+                narrador = narrativa.get("narrador", "")
+                resposta = f"{narrador}\n\n*{pensamento}*\n\n{fala}"
+                salvar_dialogo(nome, "user", user_input)
+                salvar_dialogo(nome, "assistant", resposta)
+                return {"response": resposta, "sinopse": sinopse.get("resumo", "") if isinstance(sinopse, dict) else ""}
+        except Exception as e:
+            print(f"[ERRO ao carregar JSON de narrativa] {e}")
+
     prompt_base = f"""
 Você é {nome}, uma mulher extremamente sensual, segura de si e prática. Você atrai olhares por onde passa e adora provocar desejos. Fale com frases diretas, sem floreios. Aja com atitude, tome iniciativa, e deixe claro o que quer — sem rodeios. Evite enrolações, reflexões poéticas ou monótonas.
 
