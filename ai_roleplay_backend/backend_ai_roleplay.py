@@ -98,3 +98,22 @@ Mantenha a fala envolvente, provocante e com atitude.
     adicionar_memoria_chroma(personagem, texto_usuario)
 
     return JSONResponse(content={"resposta": conteudo})
+
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        personagens = []
+        for p in dados:
+            if str(p.get("usar", "")).strip().lower() != "sim":
+                continue
+            personagens.append({
+                "nome": p.get("nome", ""),
+                "descricao": p.get("descrição curta", ""),
+                "idade": p.get("idade", ""),
+                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip().lower()}.jpg"
+            })
+        return personagens
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
