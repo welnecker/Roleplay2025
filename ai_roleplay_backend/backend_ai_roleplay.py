@@ -53,14 +53,14 @@ def carregar_personagens():
 personagens_ativos = carregar_personagens()
 
 # === ChromaDB ===
-chroma_client = chromadb.Client(Settings(
-    chroma_db_impl=os.environ.get("CHROMA_DB_IMPL", "chromadb.db.postgres.PostgresDB"),
-    chroma_postgres_host=os.environ.get("CHROMA_POSTGRES_HOST"),
-    chroma_postgres_port=os.environ.get("CHROMA_POSTGRES_PORT"),
-    chroma_postgres_user=os.environ.get("CHROMA_POSTGRES_USER"),
-    chroma_postgres_password=os.environ.get("CHROMA_POSTGRES_PASSWORD"),
-    chroma_postgres_database=os.environ.get("CHROMA_POSTGRES_DATABASE")
-))
+os.environ["CHROMA_DB_IMPL"] = "chromadb.db.postgres.PostgresDB"
+os.environ["CHROMA_POSTGRES_HOST"] = os.environ.get("CHROMA_POSTGRES_HOST", "")
+os.environ["CHROMA_POSTGRES_PORT"] = os.environ.get("CHROMA_POSTGRES_PORT", "")
+os.environ["CHROMA_POSTGRES_USER"] = os.environ.get("CHROMA_POSTGRES_USER", "")
+os.environ["CHROMA_POSTGRES_PASSWORD"] = os.environ.get("CHROMA_POSTGRES_PASSWORD", "")
+os.environ["CHROMA_POSTGRES_DATABASE"] = os.environ.get("CHROMA_POSTGRES_DATABASE", "")
+
+chroma_client = chromadb.Client(Settings())
 
 # Cria a coleção de memórias vetoriais
 chroma_memorias = chroma_client.get_or_create_collection(name="memorias")
