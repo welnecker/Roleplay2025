@@ -52,6 +52,24 @@ def carregar_personagens():
 
 personagens_ativos = carregar_personagens()
 
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        sheet = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = sheet.get_all_records()
+        personagens = []
+        for linha in dados:
+            if linha.get("usar", "").strip().lower() == "sim":
+                personagens.append({
+                    "nome": linha.get("nome", ""),
+                    "descricao": linha.get("descrição curta", ""),
+                    "idade": linha.get("idade", ""),
+                    "foto": f"{GITHUB_IMG_URL}{linha.get('nome','').strip()}.jpg"
+                })
+        return personagens
+    except Exception as e:
+        return JSONResponse(content={"erro": f"Erro ao listar personagens: {e}"}, status_code=500)
+
 # === ChromaDB ===
 os.environ["CHROMA_DB_IMPL"] = "chromadb.db.postgres.PostgresDB"
 os.environ["CHROMA_DB_HOST"] = os.environ.get("CHROMA_POSTGRES_HOST", "")
