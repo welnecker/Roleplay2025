@@ -39,8 +39,28 @@ app.add_middleware(
 introducao_mostrada_por_usuario = {}
 contador_interacoes = {}
 
+# === Carregar personagens da planilha ===
+def carregar_personagens():
+    try:
+        sheet = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = sheet.get_all_records()
+        personagens = {linha["nome"].strip().lower(): linha for linha in dados if linha.get("usar", "sim").lower() == "sim"}
+        return personagens
+    except Exception as e:
+        print(f"[ERRO carregar_personagens] {e}")
+        return {}
+
+personagens_ativos = carregar_personagens()
+
 # === ChromaDB ===
-chroma_client = chromadb.Client(Settings())
+chroma_client = chromadb.Client(Settings(
+    chroma_db_impl=os.environ.get("CHROMA_DB_IMPL", "chromadb.db.postgres.PostgresDB"),
+    chroma_postgres_host=os.environ.get("CHROMA_POSTGRES_HOST"),
+    chroma_postgres_port=os.environ.get("CHROMA_POSTGRES_PORT"),
+    chroma_postgres_user=os.environ.get("CHROMA_POSTGRES_USER"),
+    chroma_postgres_password=os.environ.get("CHROMA_POSTGRES_PASSWORD"),
+    chroma_postgres_database=os.environ.get("CHROMA_POSTGRES_DATABASE")
+))
 
 # Cria a coleção de memórias vetoriais
 chroma_memorias = chroma_client.get_or_create_collection(name="memorias")
@@ -79,6 +99,9 @@ class MensagemUsuario(BaseModel):
 def chat_com_memoria(mensagem: MensagemUsuario):
     personagem = mensagem.personagem
     texto_usuario = mensagem.user_input
+
+    if personagem.lower() not in personagens_ativos:
+        return JSONResponse(content={"erro": "Nenhum personagem encontrado"}, status_code=404)
 
     # Buscar memórias similares
     memorias = buscar_memorias_similares(personagem, texto_usuario, n=3)
