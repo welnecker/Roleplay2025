@@ -8,10 +8,9 @@ from datetime import datetime
 from openai import OpenAI
 import json
 import os
+import requests
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
-from chromadb.config import Settings
-import chromadb
 
 # === Setup Google Sheets ===
 scope = [
@@ -36,94 +35,38 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-introducao_mostrada_por_usuario = {}
-contador_interacoes = {}
+CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
 
-# === Carregar personagens da planilha ===
-def carregar_personagens():
-    try:
-        sheet = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = sheet.get_all_records()
-        personagens = {linha["nome"].strip().lower(): linha for linha in dados if linha.get("usar", "sim").lower() == "sim"}
-        return personagens
-    except Exception as e:
-        print(f"[ERRO carregar_personagens] {e}")
-        return {}
-
-personagens_ativos = carregar_personagens()
-
-@app.get("/personagens/")
-def listar_personagens():
-    try:
-        sheet = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = sheet.get_all_records()
-        personagens = []
-        for linha in dados:
-            if linha.get("usar", "").strip().lower() == "sim":
-                personagens.append({
-                    "nome": linha.get("nome", ""),
-                    "descricao": linha.get("descrição curta", ""),
-                    "idade": linha.get("idade", ""),
-                    "foto": f"{GITHUB_IMG_URL}{linha.get('nome','').strip()}.jpg"
-                })
-        return personagens
-    except Exception as e:
-        return JSONResponse(content={"erro": f"Erro ao listar personagens: {e}"}, status_code=500)
-
-# === ChromaDB ===
-os.environ["CHROMA_DB_IMPL"] = "chromadb.db.postgres.PostgresDB"
-os.environ["CHROMA_DB_HOST"] = os.environ.get("CHROMA_POSTGRES_HOST", "")
-os.environ["CHROMA_DB_PORT"] = os.environ.get("CHROMA_POSTGRES_PORT", "")
-os.environ["CHROMA_DB_USER"] = os.environ.get("CHROMA_POSTGRES_USER", "")
-os.environ["CHROMA_DB_PASSWORD"] = os.environ.get("CHROMA_POSTGRES_PASSWORD", "")
-os.environ["CHROMA_DB_DATABASE"] = os.environ.get("CHROMA_POSTGRES_DATABASE", "")
-
-settings = Settings()
-chroma_client = chromadb.Client(settings)
-
-# Cria a coleção de memórias vetoriais
-chroma_memorias = chroma_client.get_or_create_collection(name="memorias")
-
-# Salva memória vetorial
-def salvar_memoria_vetorial(personagem: str, conteudo: str):
-    try:
-        id_memoria = f"{personagem}_{datetime.now().timestamp()}"
-        chroma_memorias.add(
-            documents=[conteudo],
-            ids=[id_memoria],
-            metadata={"personagem": personagem, "timestamp": str(datetime.now())}
-        )
-    except Exception as e:
-        print(f"[ERRO salvar_memoria_vetorial] {e}")
-
-# Busca memórias similares
-def buscar_memorias_similares(personagem: str, texto: str, n: int = 3):
-    try:
-        resultados = chroma_memorias.query(
-            query_texts=[texto],
-            n_results=n,
-            where={"personagem": personagem}
-        )
-        return resultados.get("documents", [[]])[0]
-    except Exception as e:
-        print(f"[ERRO buscar_memorias_similares] {e}")
-        return []
-
-# === Modelos de entrada ===
 class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
+
+def adicionar_memoria_chroma(personagem: str, conteudo: str):
+    url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
+    dados = {
+        "documents": [conteudo],
+        "ids": [f"{personagem}_{datetime.now().timestamp()}"],
+        "metadata": {"personagem": personagem, "timestamp": str(datetime.now())}
+    }
+    requests.post(url, json=dados)
+
+def buscar_memorias_chroma(personagem: str, texto: str):
+    url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
+    dados = {
+        "query_texts": [texto],
+        "n_results": 3,
+        "where": {"personagem": personagem}
+    }
+    resposta = requests.post(url, json=dados)
+    resultados = resposta.json()
+    return resultados.get("documents", [[]])[0]
 
 @app.post("/chat/")
 def chat_com_memoria(mensagem: MensagemUsuario):
     personagem = mensagem.personagem
     texto_usuario = mensagem.user_input
 
-    if personagem.lower() not in personagens_ativos:
-        return JSONResponse(content={"erro": "Nenhum personagem encontrado"}, status_code=404)
-
-    # Buscar memórias similares
-    memorias = buscar_memorias_similares(personagem, texto_usuario, n=3)
+    memorias = buscar_memorias_chroma(personagem, texto_usuario)
     contexto = "\n".join(memorias)
 
     prompt = f"""
@@ -133,7 +76,7 @@ MEMÓRIAS RELEVANTES:
 {contexto}
 
 MENSAGEM DO USUÁRIO:
-"{texto_usuario}"
+\"{texto_usuario}\"
 
 Sua resposta deve sempre conter:
 - Uma fala direta da personagem.
@@ -152,7 +95,6 @@ Mantenha a fala envolvente, provocante e com atitude.
     )
     conteudo = resposta.choices[0].message.content.strip()
 
-    # Salvar memória nova
-    salvar_memoria_vetorial(personagem, texto_usuario)
+    adicionar_memoria_chroma(personagem, texto_usuario)
 
     return JSONResponse(content={"resposta": conteudo})
