@@ -7,3 +7,4 @@ requests
 openai
 python-dateutil
 pydantic
+chromadb[postgres]
