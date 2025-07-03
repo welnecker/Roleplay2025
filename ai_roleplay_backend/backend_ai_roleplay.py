@@ -61,6 +61,21 @@ def buscar_memorias_chroma(personagem: str, texto: str):
     resultados = resposta.json()
     return resultados.get("documents", [[]])[0]
 
+def obter_memoria_inicial(personagem: str):
+    if personagem.lower() == "regina":
+        return (
+            "Regina está viajando de moto por uma estrada deserta ao entardecer. "
+            "O vento bagunça seu cabelo solto e o couro justo da jaqueta envolve suas curvas. "
+            "Ela para em um motel de beira de estrada, sentindo que a noite pode trazer algo inesperado."
+        )
+    elif personagem.lower() == "jennifer":
+        return (
+            "Jennifer acorda em um quarto escuro, iluminado apenas pela luz azul do computador. "
+            "Ela sente que alguém a observa pela câmera desligada. Sussurros ecoam em sua mente. "
+            "É noite. Algo a chama para fora, mas ela ainda não entende o que."
+        )
+    return ""
+
 @app.post("/chat/")
 def chat_com_memoria(mensagem: MensagemUsuario):
     personagem = mensagem.personagem
@@ -68,6 +83,9 @@ def chat_com_memoria(mensagem: MensagemUsuario):
 
     memorias = buscar_memorias_chroma(personagem, texto_usuario)
     contexto = "\n".join(memorias)
+
+    if not contexto:
+        contexto = obter_memoria_inicial(personagem)
 
     prompt = f"""
 A partir das memórias relevantes abaixo, responda como a personagem {personagem}:
@@ -97,7 +115,7 @@ Mantenha a fala envolvente, provocante e com atitude.
 
     adicionar_memoria_chroma(personagem, texto_usuario)
 
-    return JSONResponse(content={"resposta": conteudo})
+    return JSONResponse(content={"response": conteudo, "resposta": conteudo})
 
 @app.get("/personagens/")
 def listar_personagens():
@@ -120,19 +138,8 @@ def listar_personagens():
 
 @app.post("/memoria_inicial/")
 def inserir_memoria_inicial(personagem: str):
-    if personagem.lower() == "regina":
-        conteudo = (
-            "Regina está viajando de moto por uma estrada deserta ao entardecer. "
-            "O vento bagunça seu cabelo solto e o couro justo da jaqueta envolve suas curvas. "
-            "Ela para em um motel de beira de estrada, sentindo que a noite pode trazer algo inesperado."
-        )
-    elif personagem.lower() == "jennifer":
-        conteudo = (
-            "Jennifer acorda em um quarto escuro, iluminado apenas pela luz azul do computador. "
-            "Ela sente que alguém a observa pela câmera desligada. Sussurros ecoam em sua mente. "
-            "É noite. Algo a chama para fora, mas ela ainda não entende o que."
-        )
-    else:
+    conteudo = obter_memoria_inicial(personagem)
+    if not conteudo:
         return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
 
     adicionar_memoria_chroma(personagem, conteudo)
