@@ -146,6 +146,8 @@ def inserir_memoria_inicial(personagem: str):
     return {"status": f"Memória inicial de {personagem} adicionada com sucesso."}
 
 @app.get("/intro/")
-def introducao_personagem(personagem: str):
-    conteudo = obter_memoria_inicial(personagem)
-    return {"introducao": conteudo if conteudo else ""}
+def obter_intro_personagem(personagem: str):
+    texto = obter_memoria_inicial(personagem)
+    if not texto:
+        return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
+    return {"intro": texto}
