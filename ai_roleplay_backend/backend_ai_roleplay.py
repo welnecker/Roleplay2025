@@ -41,6 +41,9 @@ class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
 
+class NomePersonagem(BaseModel):
+    personagem: str
+
 def adicionar_memoria_chroma(personagem: str, conteudo: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
     dados = {
@@ -137,10 +140,16 @@ def listar_personagens():
         return JSONResponse(content={"erro": str(e)}, status_code=500)
 
 @app.post("/memoria_inicial/")
-def inserir_memoria_inicial(personagem: str):
+def inserir_memoria_inicial(body: NomePersonagem):
+    personagem = body.personagem
     conteudo = obter_memoria_inicial(personagem)
     if not conteudo:
         return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
 
     adicionar_memoria_chroma(personagem, conteudo)
-    return {"status": f"Memória inicial de {personagem} adicionada com sucesso."}
+    return {"status": f"Memória inicial de {personagem} adicionada com sucesso.", "memoria": conteudo}
+
+@app.get("/intro/")
+def intro_personagem(personagem: str):
+    conteudo = obter_memoria_inicial(personagem)
+    return {"introducao": conteudo}
