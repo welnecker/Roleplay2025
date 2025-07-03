@@ -117,3 +117,23 @@ def listar_personagens():
         return personagens
     except Exception as e:
         return JSONResponse(content={"erro": str(e)}, status_code=500)
+
+@app.post("/memoria_inicial/")
+def inserir_memoria_inicial(personagem: str):
+    if personagem.lower() == "regina":
+        conteudo = (
+            "Regina está viajando de moto por uma estrada deserta ao entardecer. "
+            "O vento bagunça seu cabelo solto e o couro justo da jaqueta envolve suas curvas. "
+            "Ela para em um motel de beira de estrada, sentindo que a noite pode trazer algo inesperado."
+        )
+    elif personagem.lower() == "jennifer":
+        conteudo = (
+            "Jennifer acorda em um quarto escuro, iluminado apenas pela luz azul do computador. "
+            "Ela sente que alguém a observa pela câmera desligada. Sussurros ecoam em sua mente. "
+            "É noite. Algo a chama para fora, mas ela ainda não entende o que."
+        )
+    else:
+        return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
+
+    adicionar_memoria_chroma(personagem, conteudo)
+    return {"status": f"Memória inicial de {personagem} adicionada com sucesso."}
