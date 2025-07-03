@@ -86,7 +86,7 @@ Sua resposta deve sempre conter:
 Mantenha a fala envolvente, provocante e com atitude.
 """
 
-    resposta = OpenAI().chat.completions.create(
+    resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
         model="gpt-4",
         messages=[
             {"role": "system", "content": "Você é uma personagem fictícia sensual, emocionalmente expressiva e com memórias."},
