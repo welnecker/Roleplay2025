@@ -112,7 +112,7 @@ def listar_personagens():
                 "nome": p.get("nome", ""),
                 "descricao": p.get("descrição curta", ""),
                 "idade": p.get("idade", ""),
-                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip().lower()}.jpg"
+                "foto": f"{GITHUB_IMG_URL}{p.get('nome','').strip()}.jpg"
             })
         return personagens
     except Exception as e:
