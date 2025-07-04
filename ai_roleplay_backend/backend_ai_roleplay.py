@@ -54,6 +54,19 @@ def obter_intro_personagem(personagem: str):
     except Exception as e:
         return JSONResponse(content={"erro": f"Erro ao acessar planilha: {e}"}, status_code=500)
 
+@app.get("/mensagens/")
+def obter_mensagens_personagem(personagem: str):
+    try:
+        sheet = gsheets_client.open_by_key(PLANILHA_ID)
+        aba = sheet.worksheet(personagem)
+        dados = aba.get_all_records()
+        # Ignorar a primeira linha se for role=system
+        if dados and dados[0].get("role") == "system":
+            return dados[1:]  # ignora introdução
+        return dados
+    except Exception as e:
+        return JSONResponse(content={"erro": f"Erro ao acessar mensagens: {e}"}, status_code=500)
+
 @app.get("/")
 def home():
     return {"status": "API Roleplay Online"}
