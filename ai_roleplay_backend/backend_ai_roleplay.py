@@ -31,6 +31,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        sheet = gsheets_client.open_by_key(PLANILHA_ID)
+        aba = sheet.worksheet("personagens")
+        dados = aba.get_all_records()
+        return dados
+    except Exception as e:
+        return JSONResponse(content={"erro": f"Erro ao acessar planilha: {e}"}, status_code=500)
+
 @app.get("/intro/")
 def obter_intro_personagem(personagem: str):
     try:
