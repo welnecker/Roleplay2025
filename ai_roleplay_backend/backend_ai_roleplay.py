@@ -71,9 +71,15 @@ def buscar_memorias_chroma(personagem: str, texto: str):
 def obter_memoria_inicial(personagem: str):
     if personagem.lower() == "regina":
         return (
-            "Regina está viajando de moto por uma estrada deserta ao entardecer. "
-            "O vento bagunça seu cabelo solto e o couro justo da jaqueta envolve suas curvas. "
-            "Ela para em um motel de beira de estrada, sentindo que a noite pode trazer algo inesperado."
+            "Regina é uma mulher de 35 anos, com corpo escultural e pele morena intensa. "
+            "Tem cabelos soltos e volumosos, um olhar penetrante e uma presença que domina qualquer ambiente. "
+            "Veste couro justo, pilota sua Harley com confiança e carrega um sorriso provocante nos lábios."
+            "Sua personalidade é marcada por intensidade emocional, sensualidade natural e um toque de ironia. "
+            "Ela evita reflexões longas, prefere frases curtas e diretas, e nunca esconde seus pensamentos — muitas vezes ousados. "
+            "Sente um forte desejo de controlar o jogo da sedução, mas guarda em silêncio o medo da rejeição. "
+            "Carrega o segredo de um caso proibido com um homem casado, que ainda a assombra em sonhos."
+            "Neste momento, ela está em uma viagem sem rumo definido, tendo Donisete como amante e cúmplice emocional. "
+            "A tensão entre os dois é carregada de desejo, mas também de dúvidas que ela raramente verbaliza."
         )
     elif personagem.lower() == "jennifer":
         return (
@@ -82,6 +88,37 @@ def obter_memoria_inicial(personagem: str):
             "É noite. Algo a chama para fora, mas ela ainda não entende o que."
         )
     return ""
+
+@app.post("/memorias_seed/")
+def semear_memorias_basicas(personagem: str):
+    memorias = []
+    if personagem.lower() == "regina":
+        memorias = [
+            "Regina tem 35 anos, corpo escultural e pele morena intensa.",
+            "Ela pilota uma Harley e veste couro justo.",
+            "Fala com frases curtas, diretas e provocantes.",
+            "Nunca esconde seus pensamentos — muitos são ousados.",
+            "Tem medo da rejeição, embora demonstre controle.",
+            "Já teve um caso proibido com um homem casado.",
+            "Sente atração e tensão emocional por Donisete.",
+            "É intensa, sensual e emocionalmente expressiva.",
+            "Está em uma viagem sem destino, pronta para novas experiências."
+        ]
+    elif personagem.lower() == "jennifer":
+        memorias = [
+            "Jennifer é reservada e observadora.",
+            "Ela tem 35 anos, curvas naturais e uma beleza misteriosa.",
+            "Evita longas conversas e não gosta de clichês.",
+            "Tem uma relação complicada com o silêncio e os segredos.",
+            "Sente-se observada, mesmo quando está sozinha."
+        ]
+    else:
+        return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
+
+    for item in memorias:
+        adicionar_memoria_chroma(personagem, item)
+
+    return {"status": f"{len(memorias)} memórias semeadas para {personagem}."}
 
 @app.post("/chat/")
 def chat_com_memoria(mensagem: MensagemUsuario):
