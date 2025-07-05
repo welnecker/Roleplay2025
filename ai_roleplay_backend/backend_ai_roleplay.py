@@ -25,6 +25,7 @@ gsheets_client = gspread.authorize(creds)
 
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
+CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
 
 app = FastAPI()
 app.add_middleware(
@@ -34,8 +35,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
 
 class MensagemUsuario(BaseModel):
     user_input: str
@@ -50,6 +49,14 @@ def adicionar_memoria_chroma(personagem: str, conteudo: str):
     }
     requests.post(url, json=dados)
 
+def apagar_memorias_chroma(personagem: str):
+    url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/delete"
+    dados = {
+        "where": {"personagem": personagem}
+    }
+    resposta = requests.post(url, json=dados)
+    return resposta.json()
+
 def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
@@ -57,37 +64,13 @@ def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     except Exception as e:
         print(f"Erro ao salvar mensagem na planilha: {e}")
 
-def buscar_memorias_chroma(personagem: str, texto: str):
-    url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
-    dados = {
-        "query_texts": [texto],
-        "n_results": 3,
-        "where": {"personagem": personagem}
-    }
-    resposta = requests.post(url, json=dados)
-    resultados = resposta.json()
-    return resultados.get("documents", [[]])[0]
-
-def obter_memoria_inicial(personagem: str):
-    if personagem.lower() == "regina":
-        return (
-            "Regina é uma mulher de 35 anos, com corpo escultural e pele morena intensa. "
-            "Tem cabelos soltos e volumosos, um olhar penetrante e uma presença que domina qualquer ambiente. "
-            "Veste couro justo, pilota sua Harley com confiança e carrega um sorriso provocante nos lábios."
-            "Sua personalidade é marcada por intensidade emocional, sensualidade natural e um toque de ironia. "
-            "Ela evita reflexões longas, prefere frases curtas e diretas, e nunca esconde seus pensamentos — muitas vezes ousados. "
-            "Sente um forte desejo de controlar o jogo da sedução, mas guarda em silêncio o medo da rejeição. "
-            "Carrega o segredo de um caso proibido com um homem casado, que ainda a assombra em sonhos."
-            "Neste momento, ela está em uma viagem sem rumo definido, tendo Donisete como amante e cúmplice emocional. "
-            "A tensão entre os dois é carregada de desejo, mas também de dúvidas que ela raramente verbaliza."
-        )
-    elif personagem.lower() == "jennifer":
-        return (
-            "Jennifer acorda em um quarto escuro, iluminado apenas pela luz azul do computador. "
-            "Ela sente que alguém a observa pela câmera desligada. Sussurros ecoam em sua mente. "
-            "É noite. Algo a chama para fora, mas ela ainda não entende o que."
-        )
-    return ""
+@app.post("/memorias_clear/")
+def limpar_memorias_personagem(personagem: str):
+    try:
+        resultado = apagar_memorias_chroma(personagem)
+        return {"status": f"Memórias apagadas para {personagem}.", "detalhes": resultado}
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
 
 @app.post("/memorias_seed/")
 def semear_memorias_basicas(personagem: str):
@@ -119,6 +102,27 @@ def semear_memorias_basicas(personagem: str):
         adicionar_memoria_chroma(personagem, item)
 
     return {"status": f"{len(memorias)} memórias semeadas para {personagem}."}
+
+def obter_memoria_inicial(personagem: str):
+    if personagem.lower() == "regina":
+        return (
+            "Regina é uma mulher de 35 anos, com corpo escultural e pele morena intensa. "
+            "Tem cabelos soltos e volumosos, um olhar penetrante e uma presença que domina qualquer ambiente. "
+            "Veste couro justo, pilota sua Harley com confiança e carrega um sorriso provocante nos lábios."
+            "Sua personalidade é marcada por intensidade emocional, sensualidade natural e um toque de ironia. "
+            "Ela evita reflexões longas, prefere frases curtas e diretas, e nunca esconde seus pensamentos — muitas vezes ousados. "
+            "Sente um forte desejo de controlar o jogo da sedução, mas guarda em silêncio o medo da rejeição. "
+            "Carrega o segredo de um caso proibido com um homem casado, que ainda a assombra em sonhos."
+            "Neste momento, ela está em uma viagem sem rumo definido, tendo Donisete como amante e cúmplice emocional. "
+            "A tensão entre os dois é carregada de desejo, mas também de dúvidas que ela raramente verbaliza."
+        )
+    elif personagem.lower() == "jennifer":
+        return (
+            "Jennifer acorda em um quarto escuro, iluminado apenas pela luz azul do computador. "
+            "Ela sente que alguém a observa pela câmera desligada. Sussurros ecoam em sua mente. "
+            "É noite. Algo a chama para fora, mas ela ainda não entende o que."
+        )
+    return ""
 
 @app.post("/chat/")
 def chat_com_memoria(mensagem: MensagemUsuario):
@@ -162,6 +166,17 @@ Mantenha a fala envolvente, provocante e com atitude.
     salvar_mensagem_na_planilha(personagem, "assistant", conteudo)
 
     return JSONResponse(content={"response": conteudo, "resposta": conteudo})
+
+def buscar_memorias_chroma(personagem: str, texto: str):
+    url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
+    dados = {
+        "query_texts": [texto],
+        "n_results": 3,
+        "where": {"personagem": personagem}
+    }
+    resposta = requests.post(url, json=dados)
+    resultados = resposta.json()
+    return resultados.get("documents", [[]])[0]
 
 @app.get("/personagens/")
 def listar_personagens():
