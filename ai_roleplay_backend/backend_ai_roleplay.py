@@ -161,6 +161,44 @@ Usuário: {dados.user_input}
 @app.post("/chat/")
 def chat_com_personagem(dados: MensagemUsuario):
     try:
+        if not dados.regenerar:
+            salvar_mensagem_na_planilha(dados.personagem, "user", dados.user_input)
+
+        # Recuperar memórias
+        memorias = buscar_memorias_chroma(dados.personagem)
+        memorias_texto = "\n".join(memorias)
+
+        prompt = f"""
+Você é {dados.personagem}. Aja de forma coerente com os traços e estilo abaixo:
+{memorias_texto}
+
+Agora responda ao usuário com base nisso:
+Usuário: {dados.user_input}
+"""
+
+        client = OpenAI()
+        resposta = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Você é uma personagem de roleplay."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        resposta_texto = resposta.choices[0].message.content
+
+        if not dados.regenerar:
+            salvar_mensagem_na_planilha(dados.personagem, "assistant", resposta_texto)
+
+        return {"resposta": resposta_texto}
+
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
+
+
+# Endpoint: conversa principal com IA e memórias
+@app.post("/chat/")
+def chat_com_personagem(dados: MensagemUsuario):
+    try:
         salvar_mensagem_na_planilha(dados.personagem, "user", dados.user_input)
 
         # Recuperar memórias
