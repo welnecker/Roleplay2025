@@ -25,7 +25,6 @@ gsheets_client = gspread.authorize(creds)
 
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
-CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
 
 app = FastAPI()
 app.add_middleware(
@@ -36,10 +35,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
+
 class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
 
+class PersonagemPayload(BaseModel):
+    personagem: str
+
+# Função: adiciona memória ao ChromaDB
 def adicionar_memoria_chroma(personagem: str, conteudo: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
     dados = {
@@ -49,6 +54,7 @@ def adicionar_memoria_chroma(personagem: str, conteudo: str):
     }
     requests.post(url, json=dados)
 
+# Função: apaga todas as memórias da personagem no ChromaDB
 def apagar_memorias_chroma(personagem: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/delete"
     dados = {
@@ -57,6 +63,7 @@ def apagar_memorias_chroma(personagem: str):
     resposta = requests.post(url, json=dados)
     return resposta.json()
 
+# Função: salva mensagens no histórico (Google Sheets)
 def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
@@ -64,11 +71,36 @@ def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     except Exception as e:
         print(f"Erro ao salvar mensagem na planilha: {e}")
 
+# Endpoint: limpa memórias da personagem
 @app.post("/memorias_clear/")
-def limpar_memorias_personagem(personagem: str):
+def limpar_memorias_personagem(payload: PersonagemPayload):
     try:
-        resultado = apagar_memorias_chroma(personagem)
-        return {"status": f"Memórias apagadas para {personagem}.", "detalhes": resultado}
+        resultado = apagar_memorias_chroma(payload.personagem)
+        return {"status": f"Memórias apagadas para {payload.personagem}.", "detalhes": resultado}
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
+
+# Endpoint: semeia memórias da aba 'personagens' para a personagem
+@app.post("/memorias_seed/")
+def semear_memorias_personagem(payload: PersonagemPayload):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        personagem_dados = next((p for p in dados if p['nome'].lower() == payload.personagem.lower()), None)
+        if not personagem_dados:
+            return JSONResponse(content={"erro": "Personagem não encontrada."}, status_code=404)
+
+        campos = ["descrição curta", "traços físicos", "diretriz_positiva", "diretriz_negativa",
+                  "exemplo_narrador", "exemplo_personagem", "exemplo_pensamento", "prompt_base",
+                  "user_name", "relationship", "contexto", "humor_base", "objetivo_narrativo",
+                  "traumas", "segredos", "estilo_fala", "regras_de_discurso"]
+
+        sementes = [f"{campo.capitalize()}: {personagem_dados[campo]}" for campo in campos if personagem_dados.get(campo)]
+
+        for memoria in sementes:
+            adicionar_memoria_chroma(payload.personagem, memoria)
+
+        return {"status": f"Memórias semeadas com sucesso para {payload.personagem}.", "total": len(sementes)}
     except Exception as e:
         return JSONResponse(content={"erro": str(e)}, status_code=500)
 
