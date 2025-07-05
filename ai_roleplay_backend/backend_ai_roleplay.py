@@ -63,6 +63,20 @@ def apagar_memorias_chroma(personagem: str):
     resposta = requests.post(url, json=dados)
     return resposta.json()
 
+# Função: busca memórias recentes do ChromaDB para a personagem
+def buscar_memorias_chroma(personagem: str):
+    url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
+    dados = {
+        "query_embeddings": [],
+        "n_results": 8,
+        "where": {"personagem": personagem}
+    }
+    resposta = requests.post(url, json=dados)
+    if resposta.status_code == 200:
+        itens = resposta.json().get("documents", [])
+        return [mem for grupo in itens for mem in grupo]  # achatar lista
+    return []
+
 # Função: salva mensagens no histórico (Google Sheets)
 def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     try:
@@ -103,6 +117,41 @@ def semear_memorias_personagem(payload: PersonagemPayload):
         return {"status": f"Memórias semeadas com sucesso para {payload.personagem}.", "total": len(sementes)}
     except Exception as e:
         return JSONResponse(content={"erro": str(e)}, status_code=500)
+
+# Endpoint: conversa principal com IA e memórias
+@app.post("/chat/")
+def chat_com_personagem(dados: MensagemUsuario):
+    try:
+        salvar_mensagem_na_planilha(dados.personagem, "user", dados.user_input)
+
+        # Recuperar memórias
+        memorias = buscar_memorias_chroma(dados.personagem)
+        memorias_texto = "\n".join(memorias)
+
+        prompt = f"""
+Você é {dados.personagem}. Aja de forma coerente com os traços e estilo abaixo:
+{memorias_texto}
+
+Agora responda ao usuário com base nisso:
+Usuário: {dados.user_input}
+"""
+
+        client = OpenAI()
+        resposta = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Você é uma personagem de roleplay."},
+                {"role": "user", "content": prompt}
+            ]
+        )
+        resposta_texto = resposta.choices[0].message.content
+
+        salvar_mensagem_na_planilha(dados.personagem, "assistant", resposta_texto)
+        return {"resposta": resposta_texto}
+
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
+
 
 @app.post("/memorias_seed/")
 def semear_memorias_basicas(personagem: str):
