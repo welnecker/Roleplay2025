@@ -137,6 +137,18 @@ def listar_personagens():
     except Exception as e:
         return JSONResponse(content={"erro": str(e)}, status_code=500)
 
+@app.get("/mensagens/")
+def obter_mensagens_personagem(personagem: str):
+    try:
+        sheet = gsheets_client.open_by_key(PLANILHA_ID)
+        aba = sheet.worksheet(personagem)
+        dados = aba.get_all_records()
+        if dados and dados[0].get("role") == "system":
+            return dados[1:]  # ignora introdução
+        return dados
+    except Exception as e:
+        return JSONResponse(content={"erro": f"Erro ao acessar mensagens: {e}"}, status_code=500)
+
 @app.post("/memoria_inicial/")
 def inserir_memoria_inicial(personagem: str):
     conteudo = obter_memoria_inicial(personagem)
