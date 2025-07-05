@@ -50,6 +50,13 @@ def adicionar_memoria_chroma(personagem: str, conteudo: str):
     }
     requests.post(url, json=dados)
 
+def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        aba.append_row([datetime.now().isoformat(), role, content])
+    except Exception as e:
+        print(f"Erro ao salvar mensagem na planilha: {e}")
+
 def buscar_memorias_chroma(personagem: str, texto: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
     dados = {
@@ -114,6 +121,8 @@ Mantenha a fala envolvente, provocante e com atitude.
     conteudo = resposta.choices[0].message.content.strip()
 
     adicionar_memoria_chroma(personagem, texto_usuario)
+    salvar_mensagem_na_planilha(personagem, "user", texto_usuario)
+    salvar_mensagem_na_planilha(personagem, "assistant", conteudo)
 
     return JSONResponse(content={"response": conteudo, "resposta": conteudo})
 
