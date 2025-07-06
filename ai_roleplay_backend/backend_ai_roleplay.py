@@ -69,7 +69,6 @@ def apagar_memorias_chroma(personagem: str):
     return resposta.json()
 
 # Função: busca memórias recentes do ChromaDB para a personagem
-# (corrigida: exige dois argumentos)
 def buscar_memorias_chroma(personagem: str, texto: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
     dados = {
@@ -143,6 +142,25 @@ def semear_memorias_fixas(payload: PersonagemPayload):
             adicionar_memoria_chroma(payload.personagem, linha["conteudo"])
 
         return {"status": f"Memórias fixas adicionadas com sucesso para {payload.personagem}.", "total": len(memorias_personagem)}
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
+
+# ✅ NOVO: endpoint para listar personagens
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+
+        personagens = []
+        for linha in dados:
+            personagens.append({
+                "nome": linha.get("nome", ""),
+                "descricao": linha.get("descrição curta", ""),
+                "foto": f"{GITHUB_IMG_URL}{linha.get('nome', '').lower()}.jpg"
+            })
+
+        return personagens
     except Exception as e:
         return JSONResponse(content={"erro": str(e)}, status_code=500)
 
