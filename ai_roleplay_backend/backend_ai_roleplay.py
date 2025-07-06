@@ -74,6 +74,10 @@ def buscar_memorias_chroma(personagem: str, texto: str):
 def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        registros = aba.get_all_records()
+        for linha in registros:
+            if linha.get("role") == role and linha.get("content") == content:
+                return  # não duplica
         aba.append_row([datetime.now().isoformat(), role, content])
     except Exception as e:
         print(f"Erro ao salvar mensagem na planilha: {e}")
@@ -136,7 +140,6 @@ def obter_memoria_inicial(personagem: str):
                 memoria = linha.get("memoria_inicial", "")
                 if memoria:
                     return memoria
-        # fallback: linha system na aba do personagem
         aba_p = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         registros = aba_p.get_all_records()
         if registros and registros[0].get("role") == "system":
@@ -193,6 +196,13 @@ def apagar_memorias(payload: PersonagemPayload):
             }
         }
         resposta = requests.post(url, json=dados)
+
+        # Apagar histórico da aba do personagem
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        total_linhas = len(aba.get_all_values())
+        if total_linhas > 1:
+            aba.batch_clear([f"A2:C{total_linhas}"])
+
         if resposta.status_code == 200:
             return {"status": f"Memórias de {personagem} apagadas com sucesso."}
         else:
