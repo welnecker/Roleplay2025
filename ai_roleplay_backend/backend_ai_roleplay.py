@@ -78,20 +78,16 @@ def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     except Exception as e:
         print(f"Erro ao salvar mensagem na planilha: {e}")
 
-@app.post("/memorias_clear/")
-def limpar_memorias_personagem(payload: PersonagemPayload):
-    try:
-        # Limpa memórias no ChromaDB
-        url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/delete"
-        dados = {"where": {"personagem": payload.personagem}}
-        resultado = requests.post(url, json=dados).json()
-
-        # Limpa aba da planilha, mantendo cabeçalho
-        sheet = gsheets_client.open_by_key(PLANILHA_ID)
-        aba = sheet.worksheet(payload.personagem)
-        cabecalho = aba.row_values(1)
-        aba.clear()
-        aba.append_row(cabecalho)
+
+        # Semeia memórias fixas da aba "memorias_fixas"
+        try:
+            aba_fixas = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
+            dados_fixas = aba_fixas.get_all_records()
+            memorias_personagem = [m for m in dados_fixas if m.get("personagem", "").lower() == payload.personagem.lower()]
+            for linha in memorias_personagem:
+                adicionar_memoria_chroma(payload.personagem, linha["conteudo"])
+        except Exception as ef:
+            print(f"Erro ao semear memórias fixas: {ef}")
 
         return {"status": f"Memórias e histórico apagados para {payload.personagem}.", "detalhes": resultado}
     except Exception as e:
