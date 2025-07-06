@@ -78,6 +78,25 @@ def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     except Exception as e:
         print(f"Erro ao salvar mensagem na planilha: {e}")
 
+@app.post("/memorias_clear/")
+def limpar_memorias_personagem(payload: PersonagemPayload):
+    try:
+        # Limpa memórias no ChromaDB
+        url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/delete"
+        dados = {"where": {"personagem": payload.personagem}}
+        resultado = requests.post(url, json=dados).json()
+
+        # Limpa aba da planilha, mantendo cabeçalho
+        sheet = gsheets_client.open_by_key(PLANILHA_ID)
+        aba = sheet.worksheet(payload.personagem)
+        cabecalho = aba.row_values(1)
+        aba.clear()
+        aba.append_row(cabecalho)
+
+        return {"status": f"Memórias e histórico apagados para {payload.personagem}.", "detalhes": resultado}
+    except Exception as e:
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
+
 @app.get("/personagens/")
 def listar_personagens():
     try:
