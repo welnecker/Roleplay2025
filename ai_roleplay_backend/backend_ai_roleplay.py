@@ -102,7 +102,10 @@ def semear_memorias_personagem(payload: PersonagemPayload):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
-        personagem_dados = next((p for p in dados if p['nome'].lower() == payload.personagem.lower()), None)
+        personagem_dados = next(
+            (p for p in dados if p.get("nome", "").strip().lower() == payload.personagem.strip().lower()),
+            None
+        )
         if not personagem_dados:
             return JSONResponse(content={"erro": "Personagem não encontrada."}, status_code=404)
 
@@ -126,13 +129,13 @@ def semear_memorias_fixas(payload: PersonagemPayload):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
         dados = aba.get_all_records()
-        memorias_personagem = [m for m in dados if m['personagem'].lower() == payload.personagem.lower()]
+        memorias_personagem = [m for m in dados if m.get("personagem", "").strip().lower() == payload.personagem.strip().lower()]
 
         if not memorias_personagem:
             return JSONResponse(content={"erro": "Nenhuma memória fixa encontrada."}, status_code=404)
 
         for linha in memorias_personagem:
-            adicionar_memoria_chroma(payload.personagem, linha['conteudo'])
+            adicionar_memoria_chroma(payload.personagem, linha["conteudo"])
 
         return {"status": f"Memórias fixas adicionadas com sucesso para {payload.personagem}.", "total": len(memorias_personagem)}
     except Exception as e:
