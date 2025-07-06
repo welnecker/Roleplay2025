@@ -180,3 +180,20 @@ Mantenha a fala envolvente, provocante e com atitude.
     salvar_mensagem_na_planilha(personagem, "user", texto_usuario)
     salvar_mensagem_na_planilha(personagem, "assistant", conteudo)
     return JSONResponse(content={"response": conteudo, "resposta": conteudo})
+
+@app.post("/memorias_clear/")
+def apagar_memorias(personagem: str):
+    try:
+        url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/delete"
+        dados = {
+            "where": {
+                "personagem": personagem
+            }
+        }
+        resposta = requests.post(url, json=dados)
+        if resposta.status_code == 200:
+            return {"status": f"Memórias de {personagem} apagadas com sucesso."}
+        else:
+            return JSONResponse(content={"erro": "Erro ao apagar memórias."}, status_code=resposta.status_code)
+    except Exception as e:
+        return JSONResponse(content={"erro": f"Erro inesperado: {e}"}, status_code=500)
