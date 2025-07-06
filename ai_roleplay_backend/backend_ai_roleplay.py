@@ -111,7 +111,8 @@ def obter_mensagens_personagem(personagem: str):
         return JSONResponse(content={"erro": f"Erro ao acessar mensagens: {e}"}, status_code=500)
 
 @app.post("/memoria_inicial/")
-def inserir_memoria_inicial(personagem: str):
+def inserir_memoria_inicial(payload: PersonagemPayload):
+    personagem = payload.personagem
     conteudo = obter_memoria_inicial(personagem)
     if not conteudo:
         return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
@@ -182,8 +183,9 @@ Mantenha a fala envolvente, provocante e com atitude.
     return JSONResponse(content={"response": conteudo, "resposta": conteudo})
 
 @app.post("/memorias_clear/")
-def apagar_memorias(personagem: str):
+def apagar_memorias(payload: PersonagemPayload):
     try:
+        personagem = payload.personagem
         url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/delete"
         dados = {
             "where": {
