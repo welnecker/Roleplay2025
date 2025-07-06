@@ -116,7 +116,8 @@ def inserir_memoria_inicial(personagem: str):
     if not conteudo:
         return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
     adicionar_memoria_chroma(personagem, conteudo)
-    return {"status": f"Memória inicial de {personagem} adicionada com sucesso."}
+    salvar_mensagem_na_planilha(personagem, "assistant", conteudo)  # <-- Colar na tela
+    return {"status": f"Memória inicial de {personagem} adicionada com sucesso.", "mensagem_inicial": conteudo}
 
 @app.get("/intro/")
 def obter_intro_personagem(personagem: str):
@@ -131,7 +132,14 @@ def obter_memoria_inicial(personagem: str):
         dados = aba.get_all_records()
         for linha in dados:
             if linha.get("nome", "").strip().lower() == personagem.lower():
-                return linha.get("memoria_inicial", "")
+                memoria = linha.get("memoria_inicial", "")
+                if memoria:
+                    return memoria
+        # fallback: linha system na aba do personagem
+        aba_p = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        registros = aba_p.get_all_records()
+        if registros and registros[0].get("role") == "system":
+            return registros[0].get("content", "")
     except Exception as e:
         print(f"Erro ao obter memória inicial: {e}")
     return ""
