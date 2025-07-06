@@ -14,8 +14,8 @@ from oauth2client.service_account import ServiceAccountCredentials
 
 # === Setup Google Sheets ===
 scope = [
-"https://spreadsheets.google.com/feeds",
-"https://www.googleapis.com/auth/drive"
+    "https://spreadsheets.google.com/feeds",
+    "https://www.googleapis.com/auth/drive"
 ]
 creds_dict = json.loads(os.environ.get("GOOGLE_CREDS_JSON", "{}"))
 if "private_key" in creds_dict:
@@ -78,21 +78,6 @@ def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     except Exception as e:
         print(f"Erro ao salvar mensagem na planilha: {e}")
 
-
-        # Semeia memórias fixas da aba "memorias_fixas"
-        try:
-            aba_fixas = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
-            dados_fixas = aba_fixas.get_all_records()
-            memorias_personagem = [m for m in dados_fixas if m.get("personagem", "").lower() == payload.personagem.lower()]
-            for linha in memorias_personagem:
-                adicionar_memoria_chroma(payload.personagem, linha["conteudo"])
-        except Exception as ef:
-            print(f"Erro ao semear memórias fixas: {ef}")
-
-        return {"status": f"Memórias e histórico apagados para {payload.personagem}.", "detalhes": resultado}
-    except Exception as e:
-        return JSONResponse(content={"erro": str(e)}, status_code=500)
-
 @app.get("/personagens/")
 def listar_personagens():
     try:
@@ -142,10 +127,11 @@ def obter_intro_personagem(personagem: str):
 
 def obter_memoria_inicial(personagem: str):
     try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
-        if dados and dados[0].get("role") == "system":
-            return dados[0].get("content", "").strip()
+        for linha in dados:
+            if linha.get("nome", "").strip().lower() == personagem.lower():
+                return linha.get("memoria_inicial", "")
     except Exception as e:
         print(f"Erro ao obter memória inicial: {e}")
     return ""
