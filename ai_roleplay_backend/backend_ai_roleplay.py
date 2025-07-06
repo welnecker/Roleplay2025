@@ -9,6 +9,7 @@ from openai import OpenAI
 import json
 import os
 import requests
+import unicodedata
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
@@ -44,6 +45,9 @@ class MensagemUsuario(BaseModel):
 
 class PersonagemPayload(BaseModel):
     personagem: str
+
+def normalizar(texto):
+    return ''.join(c for c in unicodedata.normalize('NFD', texto.lower().strip()) if unicodedata.category(c) != 'Mn')
 
 # Função: adiciona memória ao ChromaDB
 def adicionar_memoria_chroma(personagem: str, conteudo: str):
@@ -102,8 +106,9 @@ def semear_memorias_personagem(payload: PersonagemPayload):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
+        personagem_normalizado = normalizar(payload.personagem)
         personagem_dados = next(
-            (p for p in dados if p.get("nome", "").strip().lower() == payload.personagem.strip().lower()),
+            (p for p in dados if normalizar(p.get("nome", "")) == personagem_normalizado),
             None
         )
         if not personagem_dados:
@@ -129,7 +134,7 @@ def semear_memorias_fixas(payload: PersonagemPayload):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
         dados = aba.get_all_records()
-        memorias_personagem = [m for m in dados if m.get("personagem", "").strip().lower() == payload.personagem.strip().lower()]
+        memorias_personagem = [m for m in dados if normalizar(m.get("personagem", "")) == normalizar(payload.personagem)]
 
         if not memorias_personagem:
             return JSONResponse(content={"erro": "Nenhuma memória fixa encontrada."}, status_code=404)
