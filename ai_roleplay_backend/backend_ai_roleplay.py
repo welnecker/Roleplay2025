@@ -177,12 +177,12 @@ MEMÓRIAS RELEVANTES:
 MENSAGEM DO USUÁRIO:
 \"{texto_usuario}\"
 
-Sua resposta deve sempre conter:
-- Uma fala direta da personagem.
-- Um pensamento entre parênteses.
-- Uma narração em terceira pessoa, descrevendo ações e reações.
+Sua resposta deve conter:
+1. Uma fala direta da personagem.
+2. Um pensamento íntimo entre parênteses.
+3. Uma narração em terceira pessoa (curta), com no máximo 2 frases.
 
-Mantenha a fala envolvente, provocante e com atitude.
+Evite respostas longas. Use frases curtas, objetivas, com impacto emocional ou sensual.
 """
     resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
         model="gpt-4",
