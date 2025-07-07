@@ -125,7 +125,7 @@ def chat_com_memoria(mensagem: MensagemUsuario):
     prompt = f"""
 Personagem: {personagem}
 Modo de fala: {mensagem.modo} (ajustado automaticamente conforme interação)
-Estado emocional: {mensagem.estado} (pode evoluir com o tempo)
+Estado emocional: {messagem.estado} (pode evoluir com o tempo)
 Nível de intimidade: {nivel}
 
 MEMÓRIAS RELEVANTES:
@@ -166,9 +166,13 @@ def listar_personagens():
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
         dados = aba.get_all_records()
+        personagens_validos = []
         for linha in dados:
-            nome = linha.get("nome", "").strip().lower()
-            linha["foto"] = f"{GITHUB_IMG_URL}{nome}.jpg"
-        return dados
+            nome = linha.get("nome", "").strip()
+            usar = linha.get("usar", "").strip().lower()
+            if nome and usar == "true":
+                linha["foto"] = f"https://raw.githubusercontent.com/welnecker/roleplay_imagens/main/{nome.lower()}.jpg"
+                personagens_validos.append(linha)
+        return personagens_validos
     except Exception as e:
         return JSONResponse(status_code=500, content={"erro": str(e)})
