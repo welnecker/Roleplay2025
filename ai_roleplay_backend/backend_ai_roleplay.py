@@ -70,6 +70,16 @@ def buscar_memorias_chroma(personagem: str, texto: str):
         return [mem for grupo in itens for mem in grupo]  # achatar lista
     return []
 
+# Função: busca memórias fixas do Google Sheets
+def buscar_memorias_fixas(personagem: str):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
+        dados = aba.get_all_records()
+        return [linha["conteudo"] for linha in dados if linha["personagem"].strip().lower() == personagem.lower()]
+    except Exception as e:
+        print(f"Erro ao buscar memórias fixas: {e}")
+        return []
+
 # Função: salva mensagens no histórico (Google Sheets)
 def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     try:
@@ -156,6 +166,9 @@ def chat_com_memoria(mensagem: MensagemUsuario):
     contexto = "\n".join(memorias)
     if not contexto:
         contexto = obter_memoria_inicial(personagem)
+        memorias_fixas = buscar_memorias_fixas(personagem)
+        if memorias_fixas:
+            contexto += "\n" + "\n".join(memorias_fixas)
     prompt = f"""
 A partir das memórias relevantes abaixo, responda como a personagem {personagem}:
 
