@@ -131,7 +131,6 @@ def inserir_memoria_inicial(payload: PersonagemPayload):
     if not conteudo:
         return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
     adicionar_memoria_chroma(personagem, conteudo)
-    salvar_mensagem_na_planilha(personagem, "assistant", conteudo)  # <-- Colar na tela
     return {"status": f"Memória inicial de {personagem} adicionada com sucesso.", "mensagem_inicial": conteudo}
 
 @app.get("/intro/")
