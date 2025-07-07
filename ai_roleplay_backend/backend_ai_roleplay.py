@@ -1,3 +1,5 @@
+# === backendnovo.py atualizado com modos de fala e estados emocionais (completo) ===
+
 # -*- coding: utf-8 -*-
 
 from fastapi import FastAPI, Query
@@ -41,11 +43,12 @@ class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
     regenerar: bool = False
+    modo: str = "Normal"
+    estado: str = "Neutro"
 
 class PersonagemPayload(BaseModel):
     personagem: str
 
-# Função: adiciona memória ao ChromaDB
 def adicionar_memoria_chroma(personagem: str, conteudo: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
     dados = {
@@ -55,7 +58,6 @@ def adicionar_memoria_chroma(personagem: str, conteudo: str):
     }
     requests.post(url, json=dados)
 
-# Função: busca memórias recentes do ChromaDB para a personagem
 def buscar_memorias_chroma(personagem: str, texto: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
     dados = {
@@ -67,10 +69,9 @@ def buscar_memorias_chroma(personagem: str, texto: str):
     resposta = requests.post(url, json=dados)
     if resposta.status_code == 200:
         itens = resposta.json().get("documents", [])
-        return [mem for grupo in itens for mem in grupo]  # achatar lista
+        return [mem for grupo in itens for mem in grupo]
     return []
 
-# Função: busca memórias fixas do Google Sheets
 def buscar_memorias_fixas(personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
@@ -80,14 +81,30 @@ def buscar_memorias_fixas(personagem: str):
         print(f"Erro ao buscar memórias fixas: {e}")
         return []
 
-# Função: salva mensagens no histórico (Google Sheets)
+def obter_memoria_inicial(personagem: str):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        for linha in dados:
+            if linha.get("nome", "").strip().lower() == personagem.lower():
+                memoria = linha.get("memoria_inicial", "")
+                if memoria:
+                    return memoria
+        aba_p = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        registros = aba_p.get_all_records()
+        if registros and registros[0].get("role") == "system":
+            return registros[0].get("content", "")
+    except Exception as e:
+        print(f"Erro ao obter memória inicial: {e}")
+    return ""
+
 def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         registros = aba.get_all_records()
         for linha in registros:
             if linha.get("role") == role and linha.get("content") == content:
-                return  # não duplica
+                return
         aba.append_row([datetime.now().isoformat(), role, content])
     except Exception as e:
         print(f"Erro ao salvar mensagem na planilha: {e}")
@@ -119,7 +136,7 @@ def obter_mensagens_personagem(personagem: str):
         aba = sheet.worksheet(personagem)
         dados = aba.get_all_records()
         if dados and dados[0].get("role") == "system":
-            return dados[1:]  # ignora introdução
+            return dados[1:]
         return dados
     except Exception as e:
         return JSONResponse(content={"erro": f"Erro ao acessar mensagens: {e}"}, status_code=500)
@@ -140,23 +157,6 @@ def obter_intro_personagem(personagem: str):
         return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
     return {"intro": texto}
 
-def obter_memoria_inicial(personagem: str):
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = aba.get_all_records()
-        for linha in dados:
-            if linha.get("nome", "").strip().lower() == personagem.lower():
-                memoria = linha.get("memoria_inicial", "")
-                if memoria:
-                    return memoria
-        aba_p = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        registros = aba_p.get_all_records()
-        if registros and registros[0].get("role") == "system":
-            return registros[0].get("content", "")
-    except Exception as e:
-        print(f"Erro ao obter memória inicial: {e}")
-    return ""
-
 @app.post("/chat/")
 def chat_com_memoria(mensagem: MensagemUsuario):
     personagem = mensagem.personagem
@@ -169,9 +169,10 @@ def chat_com_memoria(mensagem: MensagemUsuario):
         if memorias_fixas:
             contexto += "\n" + "\n".join(memorias_fixas)
 
-    # 🔵 NOVO PROMPT AJUSTADO PARA USAR MAIS A PRIMEIRA PESSOA
     prompt = f"""
-A partir das memórias relevantes abaixo, responda como a personagem {personagem}:
+Personagem: {personagem}
+Modo de fala: {mensagem.modo}
+Estado emocional: {mensagem.estado}
 
 MEMÓRIAS RELEVANTES:
 {contexto}
@@ -212,7 +213,6 @@ def apagar_memorias(payload: PersonagemPayload):
         }
         resposta = requests.post(url, json=dados)
 
-        # Apagar histórico da aba do personagem
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         total_linhas = len(aba.get_all_values())
         if total_linhas > 1:
