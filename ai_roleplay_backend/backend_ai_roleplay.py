@@ -43,6 +43,9 @@ class MensagemUsuario(BaseModel):
     modo: str = "Normal"
     estado: str = "Neutro"
 
+class PersonagemPayload(BaseModel):
+    personagem: str
+
 # === Funções auxiliares ===
 def adicionar_memoria_chroma(personagem: str, conteudo: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
@@ -72,7 +75,8 @@ def buscar_memorias_fixas(personagem: str):
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
         dados = aba.get_all_records()
         return [linha["conteudo"] for linha in dados if linha["personagem"].strip().lower() == personagem.lower()]
-    except:
+    except Exception as e:
+        print(f"Erro ao buscar memórias fixas: {e}")
         return []
 
 def obter_memoria_inicial(personagem: str):
@@ -81,13 +85,16 @@ def obter_memoria_inicial(personagem: str):
         dados = aba.get_all_records()
         for linha in dados:
             if linha.get("nome", "").strip().lower() == personagem.lower():
-                return linha.get("memoria_inicial", "")
-        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        registros = aba_personagem.get_all_records()
+                memoria = linha.get("memoria_inicial", "")
+                if memoria:
+                    return memoria
+        aba_p = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        registros = aba_p.get_all_records()
         if registros and registros[0].get("role") == "system":
             return registros[0].get("content", "")
-    except:
-        return ""
+    except Exception as e:
+        print(f"Erro ao obter memória inicial: {e}")
+    return ""
 
 def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     try:
@@ -97,8 +104,8 @@ def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
             if linha.get("role") == role and linha.get("content") == content:
                 return
         aba.append_row([datetime.now().isoformat(), role, content])
-    except:
-        pass
+    except Exception as e:
+        print(f"Erro ao salvar mensagem na planilha: {e}")
 
 def mensagens_do_personagem(personagem: str):
     try:
@@ -106,6 +113,34 @@ def mensagens_do_personagem(personagem: str):
         return aba.get_all_records()
     except:
         return []
+
+@app.get("/mensagens/")
+def obter_mensagens_personagem(personagem: str):
+    try:
+        sheet = gsheets_client.open_by_key(PLANILHA_ID)
+        aba = sheet.worksheet(personagem)
+        dados = aba.get_all_records()
+        if dados and dados[0].get("role") == "system":
+            return dados[1:]
+        return dados
+    except Exception as e:
+        return JSONResponse(content={"erro": f"Erro ao acessar mensagens: {e}"}, status_code=500)
+
+@app.post("/memoria_inicial/")
+def inserir_memoria_inicial(payload: PersonagemPayload):
+    personagem = payload.personagem
+    conteudo = obter_memoria_inicial(personagem)
+    if not conteudo:
+        return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
+    adicionar_memoria_chroma(personagem, conteudo)
+    return {"status": f"Memória inicial de {personagem} adicionada com sucesso.", "mensagem_inicial": conteudo}
+
+@app.get("/intro/")
+def obter_intro_personagem(personagem: str):
+    texto = obter_memoria_inicial(personagem)
+    if not texto:
+        return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
+    return {"intro": texto}
 
 @app.post("/chat/")
 def chat_com_memoria(mensagem: MensagemUsuario):
@@ -124,9 +159,8 @@ def chat_com_memoria(mensagem: MensagemUsuario):
 
     prompt = f"""
 Personagem: {personagem}
-Modo de fala: {mensagem.modo} (ajustado automaticamente conforme interação)
-Estado emocional: {mensagem.estado} (pode evoluir com o tempo)
-Nível de intimidade: {nivel}
+Modo de fala: {mensagem.modo}
+Estado emocional: {mensagem.estado}
 
 MEMÓRIAS RELEVANTES:
 {contexto}
@@ -136,11 +170,10 @@ MENSAGEM DO USUÁRIO:
 
 Sua resposta deve conter:
 1. Uma fala direta da personagem (de preferência em primeira pessoa).
-2. Um pensamento íntimo entre parênteses).
+2. Um pensamento íntimo entre parênteses.
 3. Uma narração em terceira pessoa (curta), com no máximo 2 frases.
 
 Evite respostas longas. Use frases curtas, mas permita expressividade emocional e sensual. Varie ritmo e impacto.
-Se o nível de intimidade estiver alto, permita avanços sutis, jogos de desejo ou tensão emocional intensa.
 """
 
     resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
@@ -176,3 +209,23 @@ def listar_personagens():
         return personagens_validos
     except Exception as e:
         return JSONResponse(status_code=500, content={"erro": str(e)})
+
+@app.post("/memorias_clear/")
+def apagar_memorias(payload: PersonagemPayload):
+    try:
+        personagem = payload.personagem
+        url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/delete"
+        dados = {"where": {"personagem": personagem}}
+        resposta = requests.post(url, json=dados)
+
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        total_linhas = len(aba.get_all_values())
+        if total_linhas > 1:
+            aba.batch_clear([f"A2:C{total_linhas}"])
+
+        if resposta.status_code == 200:
+            return {"status": f"Memórias de {personagem} apagadas com sucesso."}
+        else:
+            return JSONResponse(content={"erro": "Erro ao apagar memórias."}, status_code=resposta.status_code)
+    except Exception as e:
+        return JSONResponse(content={"erro": f"Erro inesperado: {e}"}, status_code=500)
