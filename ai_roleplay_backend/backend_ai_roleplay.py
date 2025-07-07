@@ -168,6 +168,8 @@ def chat_com_memoria(mensagem: MensagemUsuario):
         memorias_fixas = buscar_memorias_fixas(personagem)
         if memorias_fixas:
             contexto += "\n" + "\n".join(memorias_fixas)
+
+    # 🔵 NOVO PROMPT AJUSTADO PARA USAR MAIS A PRIMEIRA PESSOA
     prompt = f"""
 A partir das memórias relevantes abaixo, responda como a personagem {personagem}:
 
@@ -178,12 +180,13 @@ MENSAGEM DO USUÁRIO:
 \"{texto_usuario}\"
 
 Sua resposta deve conter:
-1. Uma fala direta da personagem.
+1. Uma fala direta da personagem (de preferência em primeira pessoa).
 2. Um pensamento íntimo entre parênteses.
 3. Uma narração em terceira pessoa (curta), com no máximo 2 frases.
 
 Evite respostas longas. Use frases curtas, objetivas, com impacto emocional ou sensual.
 """
+
     resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
         model="gpt-4",
         messages=[
