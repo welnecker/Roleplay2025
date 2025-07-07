@@ -184,7 +184,7 @@ Sua resposta deve conter:
 2. Um pensamento íntimo entre parênteses.
 3. Uma narração em terceira pessoa (curta), com no máximo 2 frases.
 
-Evite respostas longas. Use frases curtas, objetivas, com impacto emocional ou sensual.
+Evite respostas longas. Use frases curtas, mas permita expressividade emocional e sensual. Varie ritmo e impacto.
 """
 
     resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
