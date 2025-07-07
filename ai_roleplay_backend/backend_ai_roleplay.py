@@ -125,7 +125,7 @@ def chat_com_memoria(mensagem: MensagemUsuario):
     prompt = f"""
 Personagem: {personagem}
 Modo de fala: {mensagem.modo} (ajustado automaticamente conforme interação)
-Estado emocional: {messagem.estado} (pode evoluir com o tempo)
+Estado emocional: {mensagem.estado} (pode evoluir com o tempo)
 Nível de intimidade: {nivel}
 
 MEMÓRIAS RELEVANTES:
@@ -170,7 +170,7 @@ def listar_personagens():
         for linha in dados:
             nome = linha.get("nome", "").strip()
             usar = linha.get("usar", "").strip().lower()
-            if nome and usar == "true":
+            if nome and usar == "sim":
                 linha["foto"] = f"https://raw.githubusercontent.com/welnecker/roleplay_imagens/main/{nome.lower()}.jpg"
                 personagens_validos.append(linha)
         return personagens_validos
