@@ -1,6 +1,4 @@
-# === backendnovo.py com nível automático de intimidade ===
-
-# -*- coding: utf-8 -*-
+# === backendnovo.py atualizado com retorno de nível, modos de fala, estados emocionais e lógica de progressão ===
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -43,10 +41,13 @@ class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
     regenerar: bool = False
+    modo: str = "Normal"
+    estado: str = "Neutro"
 
 class PersonagemPayload(BaseModel):
     personagem: str
 
+# === Funções auxiliares ===
 def adicionar_memoria_chroma(personagem: str, conteudo: str):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
     dados = {
@@ -75,8 +76,7 @@ def buscar_memorias_fixas(personagem: str):
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
         dados = aba.get_all_records()
         return [linha["conteudo"] for linha in dados if linha["personagem"].strip().lower() == personagem.lower()]
-    except Exception as e:
-        print(f"Erro ao buscar memórias fixas: {e}")
+    except:
         return []
 
 def obter_memoria_inicial(personagem: str):
@@ -85,16 +85,13 @@ def obter_memoria_inicial(personagem: str):
         dados = aba.get_all_records()
         for linha in dados:
             if linha.get("nome", "").strip().lower() == personagem.lower():
-                memoria = linha.get("memoria_inicial", "")
-                if memoria:
-                    return memoria
-        aba_p = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        registros = aba_p.get_all_records()
+                return linha.get("memoria_inicial", "")
+        aba_personagem = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        registros = aba_personagem.get_all_records()
         if registros and registros[0].get("role") == "system":
             return registros[0].get("content", "")
-    except Exception as e:
-        print(f"Erro ao obter memória inicial: {e}")
-    return ""
+    except:
+        return ""
 
 def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
     try:
@@ -104,25 +101,21 @@ def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
             if linha.get("role") == role and linha.get("content") == content:
                 return
         aba.append_row([datetime.now().isoformat(), role, content])
-    except Exception as e:
-        print(f"Erro ao salvar mensagem na planilha: {e}")
+    except:
+        pass
 
-def contar_interacoes(personagem: str) -> int:
+def mensagens_do_personagem(personagem: str):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        linhas = aba.get_all_records()
-        return sum(1 for l in linhas if l.get("role") == "user")
+        return aba.get_all_records()
     except:
-        return 0
+        return []
 
+# === Rota principal com prompt intensificado e retorno do nível ===
 @app.post("/chat/")
 def chat_com_memoria(mensagem: MensagemUsuario):
     personagem = mensagem.personagem
     texto_usuario = mensagem.user_input
-
-    interacoes = contar_interacoes(personagem)
-    nivel_desejo = interacoes // 5  # A cada 5 interações, sobe 1 nível
-
     memorias = buscar_memorias_chroma(personagem, texto_usuario)
     contexto = "\n".join(memorias)
     if not contexto:
@@ -131,31 +124,34 @@ def chat_com_memoria(mensagem: MensagemUsuario):
         if memorias_fixas:
             contexto += "\n" + "\n".join(memorias_fixas)
 
+    total_interacoes = len([m for m in mensagens_do_personagem(personagem) if m['role'] == 'user'])
+    nivel = total_interacoes // 5
+
     prompt = f"""
-Você é {personagem}, uma mulher intensa e sensual que desenvolve intimidade crescente com o usuário a cada nova interação.
-
-Nível atual de desejo: {nivel_desejo}
-
-Deseje cada vez mais, mas mantenha o suspense e o controle. Explore fantasias, provocações e gestos íntimos de forma progressiva e envolvente.
+Personagem: {personagem}
+Modo de fala: {mensagem.modo} (ajustado automaticamente conforme interação)
+Estado emocional: {mensagem.estado} (pode evoluir com o tempo)
+Nível de intimidade: {nivel}
 
 MEMÓRIAS RELEVANTES:
 {contexto}
 
-Entrada do usuário:
+MENSAGEM DO USUÁRIO:
 \"{texto_usuario}\"
 
-Gere uma resposta que inclua:
-1. Uma fala direta e provocante da personagem.
-2. Um pensamento íntimo entre parênteses.
-3. Uma narração em terceira pessoa com sutilezas físicas e expressões de desejo.
+Sua resposta deve conter:
+1. Uma fala direta da personagem (de preferência em primeira pessoa).
+2. Um pensamento íntimo entre parênteses).
+3. Uma narração em terceira pessoa (curta), com no máximo 2 frases.
 
-Seja curta, sedutora, progressivamente mais intensa.
+Evite respostas longas. Use frases curtas, mas permita expressividade emocional e sensual. Varie ritmo e impacto.
+Se o nível de intimidade estiver alto, permita avanços sutis, jogos de desejo ou tensão emocional intensa.
 """
 
     resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "Você é uma personagem sensual que evolui sua intimidade com o usuário a cada interação."},
+            {"role": "system", "content": "Você é uma personagem fictícia sensual, emocionalmente expressiva e com memórias."},
             {"role": "user", "content": prompt}
         ]
     )
@@ -163,4 +159,9 @@ Seja curta, sedutora, progressivamente mais intensa.
     adicionar_memoria_chroma(personagem, texto_usuario)
     salvar_mensagem_na_planilha(personagem, "user", texto_usuario)
     salvar_mensagem_na_planilha(personagem, "assistant", conteudo)
-    return JSONResponse(content={"response": conteudo, "resposta": conteudo, "nivel": nivel_desejo})
+
+    return JSONResponse(content={
+        "response": conteudo,
+        "resposta": conteudo,
+        "nivel": nivel
+    })
