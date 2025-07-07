@@ -1,4 +1,4 @@
-# === backendnovo.py atualizado com retorno de nível, modos de fala, estados emocionais e lógica de progressão ===
+# backendnovo.py atualizado com rota /personagens/ e integração completa
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -25,6 +25,7 @@ gsheets_client = gspread.authorize(creds)
 
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
+CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
 
 app = FastAPI()
 app.add_middleware(
@@ -35,17 +36,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
-
 class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
     regenerar: bool = False
     modo: str = "Normal"
     estado: str = "Neutro"
-
-class PersonagemPayload(BaseModel):
-    personagem: str
 
 # === Funções auxiliares ===
 def adicionar_memoria_chroma(personagem: str, conteudo: str):
@@ -111,7 +107,6 @@ def mensagens_do_personagem(personagem: str):
     except:
         return []
 
-# === Rota principal com prompt intensificado e retorno do nível ===
 @app.post("/chat/")
 def chat_com_memoria(mensagem: MensagemUsuario):
     personagem = mensagem.personagem
@@ -165,3 +160,15 @@ Se o nível de intimidade estiver alto, permita avanços sutis, jogos de desejo 
         "resposta": conteudo,
         "nivel": nivel
     })
+
+@app.get("/personagens/")
+def listar_personagens():
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        dados = aba.get_all_records()
+        for linha in dados:
+            nome = linha.get("nome", "").strip().lower()
+            linha["foto"] = f"{GITHUB_IMG_URL}{nome}.jpg"
+        return dados
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"erro": str(e)})
