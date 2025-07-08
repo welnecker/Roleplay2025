@@ -204,7 +204,7 @@ def listar_personagens():
             nome = linha.get("nome", "").strip()
             usar = linha.get("usar", "").strip().lower()
             if nome and usar == "sim":
-                linha["foto"] = f"https://raw.githubusercontent.com/welnecker/roleplay_imagens/main/{nome.lower()}.jpg"
+                linha["foto"] = f"https://raw.githubusercontent.com/welnecker/roleplay_imagens/main/{nome}.jpg"
                 personagens_validos.append(linha)
         return personagens_validos
     except Exception as e:
