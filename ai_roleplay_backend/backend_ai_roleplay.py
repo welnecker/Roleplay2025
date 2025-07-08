@@ -161,6 +161,7 @@ def chat_com_memoria(mensagem: MensagemUsuario):
 Personagem: {personagem}
 Modo de fala: {mensagem.modo}
 Estado emocional: {mensagem.estado}
+Nível de intimidade com o usuário: {nivel}
 
 MEMÓRIAS RELEVANTES:
 {contexto}
@@ -174,6 +175,8 @@ Sua resposta deve conter:
 3. Uma narração em terceira pessoa (curta), com no máximo 2 frases.
 
 Evite respostas longas. Use frases curtas, mas permita expressividade emocional e sensual. Varie ritmo e impacto.
+Se o nível de intimidade estiver alto, aprofunde o envolvimento emocional ou permita avanços sutis e mais ousados.
+"""
 """
 
     resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
