@@ -1,4 +1,4 @@
-# backendnovo.py atualizado com rota /personagens/ e integração completa
+# backendnovo.py atualizado com prompt sem uso de modo/estado
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,8 +40,6 @@ class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
     regenerar: bool = False
-    modo: str = "Normal"
-    estado: str = "Neutro"
 
 class PersonagemPayload(BaseModel):
     personagem: str
@@ -160,8 +158,6 @@ def chat_com_memoria(mensagem: MensagemUsuario):
 
     prompt = f"""
 Personagem: {personagem}
-Modo de fala: {mensagem.modo}
-Estado emocional: {mensagem.estado}
 Nível de intimidade com o usuário: {nivel}
 
 MEMÓRIAS RELEVANTES:
