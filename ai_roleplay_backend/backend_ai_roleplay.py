@@ -1,4 +1,4 @@
-# backendnovo.py atualizado com prompt sem uso de modo/estado
+# backendnovo.py atualizado com prompt sem uso de modo/estado e sempre retorna memória_inicial
 
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -148,9 +148,9 @@ def chat_com_memoria(mensagem: MensagemUsuario):
     contexto = "\n".join(memorias)
     if not contexto:
         contexto = obter_memoria_inicial(personagem)
-        memorias_fixas = buscar_memorias_fixas(personagem)
-        if memorias_fixas:
-            contexto += "\n" + "\n".join(memorias_fixas)
+    memorias_fixas = buscar_memorias_fixas(personagem)
+    if memorias_fixas:
+        contexto += "\n" + "\n".join(memorias_fixas)
 
     total_interacoes = len([m for m in mensagens_do_personagem(personagem) if m['role'] == 'user'])
     nivel = total_interacoes // 5
