@@ -156,6 +156,7 @@ def chat_com_memoria(mensagem: MensagemUsuario):
 
     total_interacoes = len([m for m in mensagens_do_personagem(personagem) if m['role'] == 'user'])
     nivel = total_interacoes // 5
+    fill_index = total_interacoes % 5
 
     prompt = f"""
 Personagem: {personagem}
@@ -177,7 +178,6 @@ Sua resposta deve conter:
 Evite respostas longas. Use frases curtas, mas permita expressividade emocional e sensual. Varie ritmo e impacto.
 Se o nível de intimidade estiver alto, aprofunde o envolvimento emocional ou permita avanços sutis e mais ousados.
 """
-"""
 
     resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
         model="gpt-4",
@@ -194,7 +194,8 @@ Se o nível de intimidade estiver alto, aprofunde o envolvimento emocional ou pe
     return JSONResponse(content={
         "response": conteudo,
         "resposta": conteudo,
-        "nivel": nivel
+        "nivel": nivel,
+        "fill_index": fill_index
     })
 
 @app.get("/personagens/")
