@@ -1,6 +1,6 @@
-# backendnovo.py atualizado com prompt sem uso de modo/estado e sempre retorna memória_inicial
+# backend.py
 
-from fastapi import FastAPI, Query
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -12,7 +12,7 @@ import requests
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# === Setup Google Sheets ===
+# === Configurações ===
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -24,8 +24,8 @@ creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
 gsheets_client = gspread.authorize(creds)
 
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
-GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
+GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 
 app = FastAPI()
 app.add_middleware(
@@ -44,155 +44,137 @@ class MensagemUsuario(BaseModel):
 class PersonagemPayload(BaseModel):
     personagem: str
 
-# === Funções auxiliares ===
-def adicionar_memoria_chroma(personagem: str, conteudo: str):
+# === Funções ===
+def salvar_mensagem(personagem, role, content):
+    aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+    aba.append_row([datetime.now().isoformat(), role, content])
+
+def mensagens_personagem(personagem):
+    aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+    return aba.get_all_records()
+
+def obter_memoria_inicial(personagem):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+        for linha in aba.get_all_records():
+            if linha.get("nome", "").strip().lower() == personagem.lower():
+                return linha.get("memoria_inicial", "")
+    except:
+        return ""
+    return ""
+
+def adicionar_memoria_chroma(personagem, conteudo):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
     dados = {
         "documents": [conteudo],
         "ids": [f"{personagem}_{datetime.now().timestamp()}"],
-        "metadata": {"personagem": personagem, "timestamp": str(datetime.now())}
+        "metadata": {"personagem": personagem}
     }
     requests.post(url, json=dados)
 
-def buscar_memorias_chroma(personagem: str, texto: str):
+def buscar_memorias_chroma(personagem, texto):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
     dados = {
-        "query_embeddings": [],
         "query_texts": [texto],
         "n_results": 8,
         "where": {"personagem": personagem}
     }
-    resposta = requests.post(url, json=dados)
-    if resposta.status_code == 200:
-        itens = resposta.json().get("documents", [])
-        return [mem for grupo in itens for mem in grupo]
+    resp = requests.post(url, json=dados)
+    if resp.ok:
+        return [x for grupo in resp.json().get("documents", []) for x in grupo]
     return []
 
-def buscar_memorias_fixas(personagem: str):
+def buscar_memorias_fixas(personagem):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
-        dados = aba.get_all_records()
-        return [linha["conteudo"] for linha in dados if linha["personagem"].strip().lower() == personagem.lower()]
-    except Exception as e:
-        print(f"Erro ao buscar memórias fixas: {e}")
-        return []
-
-def obter_memoria_inicial(personagem: str):
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = aba.get_all_records()
-        for linha in dados:
-            if linha.get("nome", "").strip().lower() == personagem.lower():
-                memoria = linha.get("memoria_inicial", "")
-                if memoria:
-                    return memoria
-        aba_p = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        registros = aba_p.get_all_records()
-        if registros and registros[0].get("role") == "system":
-            return registros[0].get("content", "")
-    except Exception as e:
-        print(f"Erro ao obter memória inicial: {e}")
-    return ""
-
-def salvar_mensagem_na_planilha(personagem: str, role: str, content: str):
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        registros = aba.get_all_records()
-        for linha in registros:
-            if linha.get("role") == role and linha.get("content") == content:
-                return
-        aba.append_row([datetime.now().isoformat(), role, content])
-    except Exception as e:
-        print(f"Erro ao salvar mensagem na planilha: {e}")
-
-def mensagens_do_personagem(personagem: str):
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
-        return aba.get_all_records()
+        return [l["conteudo"] for l in aba.get_all_records() if l["personagem"].lower() == personagem.lower()]
     except:
         return []
 
+# === Rotas ===
+@app.get("/personagens/")
+def listar_personagens():
+    aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+    personagens = []
+    for linha in aba.get_all_records():
+        if linha.get("usar", "").strip().lower() == "sim":
+            linha["foto"] = f"https://raw.githubusercontent.com/welnecker/roleplay_imagens/main/{linha['nome']}.jpg"
+            personagens.append(linha)
+    return personagens
+
 @app.get("/mensagens/")
-def obter_mensagens_personagem(personagem: str):
+def obter_mensagens(personagem: str):
     try:
-        sheet = gsheets_client.open_by_key(PLANILHA_ID)
-        aba = sheet.worksheet(personagem)
-        dados = aba.get_all_records()
+        dados = mensagens_personagem(personagem)
         if dados and dados[0].get("role") == "system":
             return dados[1:]
         return dados
     except Exception as e:
-        return JSONResponse(content={"erro": f"Erro ao acessar mensagens: {e}"}, status_code=500)
+        return JSONResponse(content={"erro": str(e)}, status_code=500)
+
+@app.get("/intro/")
+def obter_intro(personagem: str):
+    texto = obter_memoria_inicial(personagem)
+    return {"intro": texto}
 
 @app.post("/memoria_inicial/")
 def inserir_memoria_inicial(payload: PersonagemPayload):
-    personagem = payload.personagem
-    conteudo = obter_memoria_inicial(personagem)
-    if not conteudo:
-        return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
-    adicionar_memoria_chroma(personagem, conteudo)
-    return {"status": f"Memória inicial de {personagem} adicionada com sucesso.", "mensagem_inicial": conteudo}
-
-@app.get("/intro/")
-def obter_intro_personagem(personagem: str):
-    texto = obter_memoria_inicial(personagem)
-    if not texto:
-        return JSONResponse(content={"erro": "Personagem desconhecida."}, status_code=400)
-    return {"intro": texto}
+    memoria = obter_memoria_inicial(payload.personagem)
+    adicionar_memoria_chroma(payload.personagem, memoria)
+    return {"status": "Memória inserida", "mensagem_inicial": memoria}
 
 @app.post("/chat/")
-def chat_com_memoria(mensagem: MensagemUsuario):
+def chat(mensagem: MensagemUsuario):
     personagem = mensagem.personagem
     texto_usuario = mensagem.user_input
-    memorias = buscar_memorias_chroma(personagem, texto_usuario)
-    contexto = "\n".join(memorias)
+
+    contexto = "\n".join(buscar_memorias_chroma(personagem, texto_usuario))
     if not contexto:
         contexto = obter_memoria_inicial(personagem)
+
     memorias_fixas = buscar_memorias_fixas(personagem)
     if memorias_fixas:
         contexto += "\n" + "\n".join(memorias_fixas)
 
-    total_interacoes = len([m for m in mensagens_do_personagem(personagem) if m['role'] == 'user'])
+    total_interacoes = len([m for m in mensagens_personagem(personagem) if m["role"] == "user"])
     nivel = total_interacoes // 5
     fill_index = total_interacoes % 5
 
     prompt = f"""
 Personagem: {personagem}
-Nível de intimidade com o usuário: {nivel}
+Nível de intimidade: {nivel}
 
-MEMÓRIAS RELEVANTES:
+MEMÓRIAS:
 {contexto}
 
 MENSAGEM DO USUÁRIO:
 \"{texto_usuario}\"
 
-Sua resposta deve conter:
-1. Uma fala direta da personagem (de preferência em primeira pessoa).
+Responda com:
+1. Uma fala direta da personagem.
 2. Um pensamento íntimo entre parênteses.
-3. Uma narração em terceira pessoa (curta), com no máximo 2 frases.
-
-Evite respostas longas. Use frases curtas, mas permita expressividade emocional e sensual. Varie ritmo e impacto.
-Se o nível de intimidade estiver alto, aprofunde o envolvimento emocional ou permita avanços sutis e mais ousados.
+3. Uma narração em terceira pessoa curta.
 """
 
-    resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY", "")).chat.completions.create(
+    resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY")).chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "Você é uma personagem fictícia sensual, emocionalmente expressiva e com memórias."},
+            {"role": "system", "content": "Você é uma personagem fictícia com memória e sensualidade."},
             {"role": "user", "content": prompt}
         ]
     )
     conteudo = resposta.choices[0].message.content.strip()
-    adicionar_memoria_chroma(personagem, texto_usuario)
-    salvar_mensagem_na_planilha(personagem, "user", texto_usuario)
-    salvar_mensagem_na_planilha(personagem, "assistant", conteudo)
 
-    return JSONResponse(content={
-        "response": conteudo,
+    adicionar_memoria_chroma(personagem, texto_usuario)
+    salvar_mensagem(personagem, "user", texto_usuario)
+    salvar_mensagem(personagem, "assistant", conteudo)
+
+    return {
         "resposta": conteudo,
         "nivel": nivel,
         "fill_index": fill_index
-    })
+    }
+)
 
 @app.get("/personagens/")
 def listar_personagens():
