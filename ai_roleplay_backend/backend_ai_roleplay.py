@@ -128,6 +128,7 @@ def chat(mensagem: MensagemUsuario):
     personagem = mensagem.personagem
     texto_usuario = mensagem.user_input
 
+    # Busca contexto da memória
     contexto = "\n".join(buscar_memorias_chroma(personagem, texto_usuario))
     if not contexto:
         contexto = obter_memoria_inicial(personagem)
@@ -136,10 +137,12 @@ def chat(mensagem: MensagemUsuario):
     if memorias_fixas:
         contexto += "\n" + "\n".join(memorias_fixas)
 
+    # Cálculo de nível
     total_interacoes = len([m for m in mensagens_personagem(personagem) if m["role"] == "user"])
     nivel = total_interacoes // 5
     fill_index = total_interacoes % 5
 
+    # Novo prompt sem numeração, com liberdade de estilo
     prompt = f"""
 Personagem: {personagem}
 Nível de intimidade: {nivel}
@@ -150,10 +153,12 @@ MEMÓRIAS:
 MENSAGEM DO USUÁRIO:
 \"{texto_usuario}\"
 
-Responda com:
-1. Uma fala direta da personagem.
-2. Um pensamento íntimo entre parênteses.
-3. Uma narração em terceira pessoa curta.
+Responda com naturalidade e profundidade, combinando:
+- Uma fala direta da personagem;
+- Um pensamento íntimo (entre parênteses ou travessões);
+- Uma breve narração em terceira pessoa, se fizer sentido.
+
+Evite numerar os trechos. Use fluidez, criatividade e o estilo próprio da personagem. Foque em gerar conexão emocional realista.
 """
 
     resposta = OpenAI(api_key=os.environ.get("OPENAI_API_KEY")).chat.completions.create(
