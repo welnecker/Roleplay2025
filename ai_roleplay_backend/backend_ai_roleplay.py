@@ -174,23 +174,6 @@ Responda com:
         "nivel": nivel,
         "fill_index": fill_index
     }
-)
-
-@app.get("/personagens/")
-def listar_personagens():
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-        dados = aba.get_all_records()
-        personagens_validos = []
-        for linha in dados:
-            nome = linha.get("nome", "").strip()
-            usar = linha.get("usar", "").strip().lower()
-            if nome and usar == "sim":
-                linha["foto"] = f"https://raw.githubusercontent.com/welnecker/roleplay_imagens/main/{nome}.jpg"
-                personagens_validos.append(linha)
-        return personagens_validos
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"erro": str(e)})
 
 @app.post("/memorias_clear/")
 def apagar_memorias(payload: PersonagemPayload):
