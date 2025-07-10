@@ -128,14 +128,23 @@ def usar_openrouter(prompt):
         "X-Title": "Roleplay2025"
     }
     payload = {
-        "model": "gryphe/mythomax-l2-13b",
+        "model": "nousresearch/deep-hermes-3-preview",
         "messages": [
-            {"role": "system", "content": "Você é uma personagem fictícia com memória e estilo próprio."},
+            {
+                "role": "system",
+                "content": (
+                    "Você é uma personagem fictícia com memórias, emoções e estilo próprio. "
+                    "Responda como se estivesse vivendo a cena, com naturalidade e emoção. "
+                    "Use fala direta quando fizer sentido, pensamentos entre parênteses para expressar sentimentos internos, "
+                    "e narração em terceira pessoa quando necessário para imersão. Mantenha coesão, sem exageros ou floreios." 
+                )
+            },
             {"role": "user", "content": prompt}
         ]
     }
     response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
     return response.json()["choices"][0]["message"]["content"], 0
+
 
 
 def usar_local_llm(prompt):
