@@ -112,6 +112,7 @@ def usar_local_llm(mensagem):
     return (f"[Local LLM] Resposta para: {mensagem.user_input}", 0)
 
 
+
 # === Funções ===
 def salvar_mensagem(personagem, role, content):
     aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
