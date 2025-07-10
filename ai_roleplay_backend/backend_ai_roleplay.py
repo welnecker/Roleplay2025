@@ -41,7 +41,8 @@ class MensagemUsuario(BaseModel):
     regenerar: bool = False
     modo: str = "Normal"
     estado: str = "Neutro"
-    plataforma: str = "openai"  # "openrouter" ou "local" também são aceitos
+    plataforma: str = "openai"
+    traduzir: bool = True
 
 class PersonagemPayload(BaseModel):
     personagem: str
@@ -56,6 +57,11 @@ async def chat(mensagem: MensagemUsuario):
         resposta, nivel = usar_local_llm(mensagem)
     else:
         return JSONResponse(content={"erro": "Plataforma não suportada."}, status_code=400)
+
+    if mensagem.traduzir:
+        resposta = traduzir_texto(resposta)
+
+    salvar_interacao(mensagem.personagem, mensagem.user_input, resposta)
 
     return JSONResponse(content={"resposta": resposta, "nivel": nivel})
 
@@ -112,6 +118,31 @@ MENSAGEM:
 
 def usar_local_llm(mensagem):
     return (f"[Local LLM] Resposta para: {mensagem.user_input}", 0)
+
+def traduzir_texto(texto):
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        r = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Traduza o seguinte texto para o português de forma natural."},
+                {"role": "user", "content": texto}
+            ]
+        )
+        return r.choices[0].message.content.strip()
+    except Exception as e:
+        return texto + f"\n\n(Erro na tradução: {str(e)})"
+
+def salvar_interacao(personagem, user_input, resposta):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        aba.append_row([timestamp, "user", user_input])
+        aba.append_row([timestamp, "assistant", resposta])
+    except Exception as e:
+        print("Erro ao salvar na planilha:", e)
+
 
 
 
