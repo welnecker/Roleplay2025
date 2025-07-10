@@ -5,7 +5,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from datetime import datetime
-from openai import OpenAI
 import json
 import os
 import requests
@@ -40,9 +39,78 @@ class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
     regenerar: bool = False
+    modo: str = "Normal"
+    estado: str = "Neutro"
+    plataforma: str = "openai"  # "openrouter" ou "local" também são aceitos
 
 class PersonagemPayload(BaseModel):
     personagem: str
+
+@app.post("/chat/")
+async def chat(mensagem: MensagemUsuario):
+    if mensagem.plataforma == "openai":
+        resposta, nivel = usar_openai(mensagem)
+    elif mensagem.plataforma == "openrouter":
+        resposta, nivel = usar_openrouter(mensagem)
+    elif mensagem.plataforma == "local":
+        resposta, nivel = usar_local_llm(mensagem)
+    else:
+        return JSONResponse(content={"erro": "Plataforma não suportada."}, status_code=400)
+
+    return JSONResponse(content={"resposta": resposta, "nivel": nivel})
+
+def usar_openai(mensagem):
+    from openai import OpenAI
+    openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+
+    prompt = f"""
+Personagem: {mensagem.personagem}
+Modo: {mensagem.modo}
+Estado emocional: {mensagem.estado}
+
+MENSAGEM:
+"{mensagem.user_input}"
+"""
+
+    response = openai_client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Você é uma personagem de roleplay."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message.content.strip(), 0
+
+def usar_openrouter(mensagem):
+    headers = {
+        "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
+        "Content-Type": "application/json"
+    }
+    prompt = f"""
+Personagem: {mensagem.personagem}
+Modo: {mensagem.modo}
+Estado emocional: {mensagem.estado}
+
+MENSAGEM:
+"{mensagem.user_input}"
+"""
+    payload = {
+        "model": "openrouter/thebloke/mythomax-l2-13b:free",
+        "messages": [
+            {"role": "system", "content": "Você é uma personagem de roleplay."},
+            {"role": "user", "content": prompt}
+        ]
+    }
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+    if response.status_code == 200:
+        dados = response.json()
+        return dados["choices"][0]["message"]["content"], 0
+    else:
+        return f"Erro na OpenRouter: {response.text}", 0
+
+def usar_local_llm(mensagem):
+    return (f"[Local LLM] Resposta para: {mensagem.user_input}", 0)
+
 
 # === Funções ===
 def salvar_mensagem(personagem, role, content):
