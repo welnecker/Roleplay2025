@@ -121,6 +121,7 @@ def usar_openai(prompt):
 
 
 def usar_openrouter(prompt):
+    # Modelo DeepHermes 3 Preview indisponível — usando fallback para Hermes 2 Pro
     headers = {
         "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
         "Content-Type": "application/json",
@@ -128,7 +129,7 @@ def usar_openrouter(prompt):
         "X-Title": "Roleplay2025"
     }
     payload = {
-        "model": "nousresearch/deep-hermes-3-preview",
+        "model": "nousresearch/nous-hermes-2-pro",
         "messages": [
             {
                 "role": "system",
@@ -143,15 +144,21 @@ def usar_openrouter(prompt):
         ]
     }
     try:
+        print("[OpenRouter] Modelo ativo: nous-hermes-2-pro")
         response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
         response.raise_for_status()
         resposta = response.json()
-        return resposta["choices"][0]["message"]["content"], 0
+        if "choices" in resposta and len(resposta["choices"]) > 0:
+            return resposta["choices"][0]["message"]["content"], 0
+        else:
+            print("⚠️ Resposta inesperada do modelo:", resposta)
+            return "[Resposta inválida ou incompleta do modelo Hermes 2 Pro]", 0
     except Exception as e:
         print("Erro na resposta do OpenRouter:", e)
         print("Status:", getattr(response, 'status_code', 'desconhecido'))
         print("Body:", getattr(response, 'text', 'sem corpo'))
-        return "[Erro ao gerar resposta com DeepHermes 3]", 0
+        return "[Erro ao gerar resposta com Hermes 2 Pro]", 0
+
 
 
 
