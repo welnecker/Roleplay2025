@@ -136,14 +136,22 @@ def usar_openrouter(prompt):
                     "Você é uma personagem fictícia com memórias, emoções e estilo próprio. "
                     "Responda como se estivesse vivendo a cena, com naturalidade e emoção. "
                     "Use fala direta quando fizer sentido, pensamentos entre parênteses para expressar sentimentos internos, "
-                    "e narração em terceira pessoa quando necessário para imersão. Mantenha coesão, sem exageros ou floreios." 
+                    "e narração em terceira pessoa quando necessário para imersão. Mantenha coesão, sem exageros ou floreios."
                 )
             },
             {"role": "user", "content": prompt}
         ]
     }
-    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-    return response.json()["choices"][0]["message"]["content"], 0
+    try:
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+        response.raise_for_status()
+        resposta = response.json()
+        return resposta["choices"][0]["message"]["content"], 0
+    except Exception as e:
+        print("Erro na resposta do OpenRouter:", e)
+        print("Status:", getattr(response, 'status_code', 'desconhecido'))
+        print("Body:", getattr(response, 'text', 'sem corpo'))
+        return "[Erro ao gerar resposta com DeepHermes 3]", 0
 
 
 
