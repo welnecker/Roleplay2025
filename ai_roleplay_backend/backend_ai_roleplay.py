@@ -84,7 +84,9 @@ MENSAGEM:
 def usar_openrouter(mensagem):
     headers = {
         "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
-        "Content-Type": "application/json"
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://amaprojeto.site",
+        "X-Title": "Roleplay2025"
     }
     prompt = f"""
 Personagem: {mensagem.personagem}
@@ -95,7 +97,7 @@ MENSAGEM:
 "{mensagem.user_input}"
 """
     payload = {
-        "model": "openrouter/thebloke/mythomax-l2-13b:free",
+        "model": "gryphe/mythomax-l2-13b",
         "messages": [
             {"role": "system", "content": "Você é uma personagem de roleplay."},
             {"role": "user", "content": prompt}
@@ -110,6 +112,7 @@ MENSAGEM:
 
 def usar_local_llm(mensagem):
     return (f"[Local LLM] Resposta para: {mensagem.user_input}", 0)
+
 
 
 
