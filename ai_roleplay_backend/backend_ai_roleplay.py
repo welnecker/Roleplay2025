@@ -120,8 +120,38 @@ def usar_openai(prompt):
     return response.choices[0].message.content.strip(), 0
 
 
-def usar_openrouter(prompt):
-    # Modelo: Hermes 2 Pro (base LLaMA 3 8B) via OpenRouter — atualizado fallback de DeepHermes 3 Preview
+def usar_openrouter(prompt, personagem):
+    # Modelo: Hermes 2 Pro (base LLaMA 3 8B) via OpenRouter — usando prompt_base da planilha
+    import os
+    import requests
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
+
+    # Autenticar Google Sheets
+    scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+    creds_dict = json.loads(os.environ.get("GOOGLE_CREDS_JSON", "{}"))
+    if "private_key" in creds_dict:
+        creds_dict["private_key"] = creds_dict["private_key"].replace("\\n", "\n")
+    creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_dict, scope)
+    gsheets_client = gspread.authorize(creds)
+
+    try:
+        sheet = gsheets_client.open_by_key("1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow")
+        aba = sheet.worksheet("personagens")
+        dados = aba.get_all_records()
+        prompt_base = next((p['prompt_base'] for p in dados if p['nome'].lower() == personagem.lower()), None)
+    except Exception as e:
+        print("Erro ao acessar planilha:", e)
+        prompt_base = None
+
+    if not prompt_base:
+        prompt_base = (
+            "Você é uma personagem fictícia com memórias, emoções e estilo próprio. "
+            "Responda como se estivesse vivendo a cena, com naturalidade e emoção. "
+            "Use fala direta quando fizer sentido, pensamentos entre parênteses para expressar sentimentos internos, "
+            "e narração em terceira pessoa quando necessário para imersão. Mantenha coesão, sem exageros ou floreios."
+        )
+
     headers = {
         "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
         "Content-Type": "application/json",
@@ -131,18 +161,11 @@ def usar_openrouter(prompt):
     payload = {
         "model": "nousresearch/hermes-2-pro-llama-3-8b",
         "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "Você é uma personagem fictícia com memórias, emoções e estilo próprio. "
-                    "Responda como se estivesse vivendo a cena, com naturalidade e emoção. "
-                    "Use fala direta quando fizer sentido, pensamentos entre parênteses para expressar sentimentos internos, "
-                    "e narração em terceira pessoa quando necessário para imersão. Mantenha coesão, sem exageros ou floreios."
-                )
-            },
+            {"role": "system", "content": prompt_base},
             {"role": "user", "content": prompt}
         ]
     }
+
     try:
         print("[OpenRouter] Modelo ativo: hermes-2-pro-llama-3-8b")
         response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
