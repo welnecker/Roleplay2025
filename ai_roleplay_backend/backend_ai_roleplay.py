@@ -89,12 +89,10 @@ def montar_prompt(personagem_dados: dict, user_input: str):
         if conteudo:
             prompt += f"[{campo.upper()}]\n{conteudo}\n\n"
 
-    # Memórias fixas
     memorias = buscar_memorias_fixas(personagem_dados.get("nome", ""))
     if memorias:
         prompt += f"[MEMÓRIAS FIXAS]\n" + "\n".join(memorias) + "\n\n"
 
-    # Histórico recente
     historico = buscar_historico_recentemente(personagem_dados.get("nome", ""))
     if historico:
         prompt += f"[HISTÓRICO RECENTE]\n{historico}\n\n"
@@ -111,10 +109,30 @@ async def chat_with_ai(request: ChatRequest):
 
     prompt = montar_prompt(personagem_dados, request.user_input)
 
-    resposta_simulada = f"[RESPOSTA SIMULADA]\n{request.personagem} responde com base no prompt:\n{prompt[:500]}..."
+    headers = {
+        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "model": "openrouter/openai/gpt-4",
+        "messages": [
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": request.user_input}
+        ]
+    }
+    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+    resposta = response.json()["choices"][0]["message"]["content"]
+
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(request.personagem)
+        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        aba.append_row([agora, "user", request.user_input])
+        aba.append_row([agora, "assistant", resposta])
+    except Exception as e:
+        print("Erro ao salvar conversa:", e)
 
     return {
-        "resposta": resposta_simulada,
+        "resposta": resposta,
         "nivel": 0
     }
 
