@@ -121,6 +121,11 @@ async def chat_with_ai(request: ChatRequest):
         ]
     }
     response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
+
+    if response.status_code != 200:
+        print("Erro OpenRouter:", response.status_code, response.text)
+        return JSONResponse(content={"erro": "Falha na resposta da IA."}, status_code=500)
+
     resposta = response.json()["choices"][0]["message"]["content"]
 
     try:
