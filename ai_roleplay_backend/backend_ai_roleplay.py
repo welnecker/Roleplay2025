@@ -59,35 +59,30 @@ async def chat(mensagem: MensagemUsuario):
     nivel = total_interacoes // 5
     fill_index = total_interacoes % 5
 
-    prompt = f"""
-{dados_personagem.get('prompt_base', '')}
+    def montar_prompt(personagem_dados: dict, user_input: str):
+    prompt = f"Você está interpretando o personagem: {personagem_dados.get('nome', 'Desconhecido')}\n"
+    prompt += f"Idade: {personagem_dados.get('idade', 'não especificada')}\n"
+    prompt += f"Aparência: {personagem_dados.get('aparencia', '')}\n\n"
 
-Personagem: {mensagem.personagem}
-Modo: {mensagem.modo}
-Estado emocional: {mensagem.estado}
-Nível de intimidade: {nivel}
+    blocos = {
+        "ESSÊNCIA DO PERSONAGEM": "essencia_personagem",
+        "TÉCNICAS DE ATUAÇÃO": "tecnicas_atuacao",
+        "TÉCNICA DE NARRAÇÃO": "tecnica_narracao",
+        "TÉCNICA DE PENSAMENTO": "tecnica_pensamento",
+        "CENOGRAFIA": "cenografia",
+        "AUTO-DEFINIÇÃO": "auto_definicao",
+        "GATILHOS EMOCIONAIS": "gatilhos_emocionais",
+        "VALORES E CONFLITOS": "valores_conflitos"
+    }
 
-Contexto atual:
-{dados_personagem.get('contexto', '')}
+    for titulo, campo in blocos.items():
+        conteudo = personagem_dados.get(campo, "")
+        if conteudo:
+            prompt += f"[{titulo}]\n{conteudo.strip()}\n\n"
 
-Memórias fixas:
-{memorias_fixas}
+    prompt += f"[MENSAGEM DO USUÁRIO]\n{user_input.strip()}\n"
+    return prompt
 
-Memórias dinâmicas:
-{memorias_chroma}
-
-Histórico recente:
-{historico}
-
-Mensagem do usuário:
-"{mensagem.user_input}"
-
-Responda de forma natural e envolvente, usando:
-- Fala direta da personagem;
-- Pensamentos íntimos (entre parênteses ou travessões);
-- Narração em terceira pessoa quando fizer sentido.
-Evite numerar ou identificar os blocos. Foque em conexão emocional e autenticidade.
-"""
 
     if mensagem.plataforma == "openai":
         resposta, _ = usar_openai(prompt)
