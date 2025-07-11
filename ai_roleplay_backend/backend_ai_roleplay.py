@@ -1,6 +1,6 @@
-# backend_personagem_completo.py
+# backend.py
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
@@ -11,7 +11,7 @@ import requests
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# === Google Sheets Setup ===
+# === Configurações ===
 scope = [
     "https://spreadsheets.google.com/feeds",
     "https://www.googleapis.com/auth/drive"
@@ -24,8 +24,8 @@ gsheets_client = gspread.authorize(creds)
 
 PLANILHA_ID = "1qFTGu-NKLt-4g5tfa-BiKPm0xCLZ9ZEv5eafUyWqQow"
 CHROMA_BASE_URL = "https://humorous-beauty-production.up.railway.app"
+GITHUB_IMG_URL = "https://welnecker.github.io/roleplay_imagens/"
 
-# === FastAPI Setup ===
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -35,36 +35,200 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# === Models ===
-class ChatRequest(BaseModel):
+class MensagemUsuario(BaseModel):
     user_input: str
     personagem: str
     regenerar: bool = False
     modo: str = "Normal"
     estado: str = "Neutro"
+    plataforma: str = "openai"
+    traduzir: bool = True
 
 class PersonagemPayload(BaseModel):
     personagem: str
 
-# === Função para buscar dados do personagem ===
-def buscar_dados_personagem(nome):
-    sheet = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
-    dados = sheet.get_all_records()
-    for linha in dados:
-        if linha.get("nome", "").strip().lower() == nome.strip().lower():
+@app.post("/chat/")
+async def chat(mensagem: MensagemUsuario):
+    dados_personagem = buscar_dados_personagem(mensagem.personagem)
+    memoria_inicial = dados_personagem.get("memoria_inicial", "")
+    memorias_fixas = buscar_memorias_fixas(mensagem.personagem)
+    memorias_chroma = buscar_memorias_chroma(mensagem.personagem, mensagem.user_input)
+    historico = buscar_historico_recentemente(mensagem.personagem)
+
+    total_interacoes = len(historico)
+    nivel = total_interacoes // 5
+    fill_index = total_interacoes % 5
+
+    prompt = f"""
+{dados_personagem.get('prompt_base', '')}
+
+Personagem: {mensagem.personagem}
+Modo: {mensagem.modo}
+Estado emocional: {mensagem.estado}
+Nível de intimidade: {nivel}
+
+Contexto atual:
+{dados_personagem.get('contexto', '')}
+
+Memórias fixas:
+{memorias_fixas}
+
+Memórias dinâmicas:
+{memorias_chroma}
+
+Histórico recente:
+{historico}
+
+Mensagem do usuário:
+"{mensagem.user_input}"
+
+Responda de forma natural e envolvente, usando:
+- Fala direta da personagem;
+- Pensamentos íntimos (entre parênteses ou travessões);
+- Narração em terceira pessoa quando fizer sentido.
+Evite numerar ou identificar os blocos. Foque em conexão emocional e autenticidade.
+"""
+
+    if mensagem.plataforma == "openai":
+        resposta, _ = usar_openai(prompt)
+    elif mensagem.plataforma == "openrouter":
+        resposta, _ = usar_openrouter(prompt)
+    elif mensagem.plataforma == "local":
+        resposta, _ = usar_local_llm(prompt)
+    else:
+        return JSONResponse(content={"erro": "Plataforma não suportada."}, status_code=400)
+
+    if mensagem.traduzir:
+        resposta = traduzir_texto(resposta)
+
+    salvar_interacao(mensagem.personagem, mensagem.user_input, resposta)
+    adicionar_memoria_chroma(mensagem.personagem, resposta)
+
+    return JSONResponse(content={"resposta": resposta, "nivel": nivel, "fill_index": fill_index})
+
+
+def usar_openai(prompt):
+    from openai import OpenAI
+    openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+    response = openai_client.chat.completions.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "Você é uma personagem fictícia com memória e estilo próprio."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return response.choices[0].message.content.strip(), 0
+
+
+def usar_openrouter(prompt, prompt_base):
+    # Modelo: Hermes 2 Pro (base LLaMA 3 8B) via OpenRouter — recebendo prompt completo
+    import os
+    import requests
+
+    headers = {
+        "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
+        "Content-Type": "application/json",
+        "HTTP-Referer": "https://amaprojeto.site",
+        "X-Title": "Roleplay2025"
+    }
+
+    payload = {
+        "model": "nousresearch/hermes-2-pro-llama-3-8b",
+        "messages": [
+            {"role": "system", "content": prompt_base},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
+    try:
+        print("[OpenRouter] Modelo ativo: hermes-2-pro-llama-3-8b")
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+        response.raise_for_status()
+        resposta = response.json()
+        if "choices" in resposta and len(resposta["choices"]) > 0:
+            return resposta["choices"][0]["message"]["content"], 0
+        else:
+            print("⚠️ Resposta inesperada do modelo:", resposta)
+            return "[Resposta inválida ou incompleta do modelo Hermes 2 Pro]", 0
+    except Exception as e:
+        print("Erro na resposta do OpenRouter:", e)
+        print("Status:", getattr(response, 'status_code', 'desconhecido'))
+        print("Body:", getattr(response, 'text', 'sem corpo'))
+        return "[Erro ao gerar resposta com Hermes 2 Pro]", 0
+
+
+
+
+
+def usar_local_llm(prompt):
+    return f"[Local LLM] Resposta para: {prompt}", 0
+
+
+def traduzir_texto(texto):
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
+        r = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "Traduza o seguinte texto para o português de forma natural."},
+                {"role": "user", "content": texto}
+            ]
+        )
+        return r.choices[0].message.content.strip()
+    except Exception as e:
+        return texto + f"\n\n(Erro na tradução: {str(e)})"
+
+
+def salvar_interacao(personagem, user_input, resposta):
+    try:
+        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        aba.append_row([timestamp, "user", user_input])
+        aba.append_row([timestamp, "assistant", resposta])
+    except Exception as e:
+        print("Erro ao salvar na planilha:", e)
+
+
+def buscar_dados_personagem(personagem):
+    aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
+    for linha in aba.get_all_records():
+        if linha.get("nome", "").strip().lower() == personagem.lower():
             return linha
     return {}
 
-# === Função para buscar memórias fixas do personagem ===
+
 def buscar_memorias_fixas(personagem):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
-        memorias = [l["conteudo"] for l in aba.get_all_records() if l["personagem"].strip().lower() == personagem.strip().lower()]
-        return memorias
+        return [l["conteudo"] for l in aba.get_all_records() if l["personagem"].lower() == personagem.lower()]
     except:
         return []
 
-# === Função para buscar histórico recente ===
+
+def buscar_memorias_chroma(personagem, texto):
+    url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
+    dados = {
+        "query_texts": [texto],
+        "n_results": 8,
+        "where": {"personagem": personagem}
+    }
+    resp = requests.post(url, json=dados)
+    if resp.ok:
+        return [x for grupo in resp.json().get("documents", []) for x in grupo]
+    return []
+
+
+def adicionar_memoria_chroma(personagem, conteudo):
+    url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
+    dados = {
+        "documents": [conteudo],
+        "ids": [f"{personagem}_{datetime.now().timestamp()}"],
+        "metadata": {"personagem": personagem}
+    }
+    requests.post(url, json=dados)
+
+
 def buscar_historico_recentemente(personagem):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
@@ -73,75 +237,6 @@ def buscar_historico_recentemente(personagem):
     except:
         return ""
 
-# === Montagem do prompt ===
-def montar_prompt(personagem_dados: dict, user_input: str):
-    campos = [
-        "essencia_personagem", "tecnicas_atuacao", "tecnica_narracao", "tecnica_pensamento",
-        "cenografia", "auto_definicao", "gatilhos_emocionais", "valores_conflitos"
-    ]
-
-    prompt = f"Você está interpretando o personagem: {personagem_dados.get('nome', 'Desconhecido')}\n"
-    prompt += f"Idade: {personagem_dados.get('idade', 'não especificada')}\n"
-    prompt += f"Aparência: {personagem_dados.get('aparencia', '')}\n\n"
-
-    for campo in campos:
-        conteudo = personagem_dados.get(campo, "")
-        if conteudo:
-            prompt += f"[{campo.upper()}]\n{conteudo}\n\n"
-
-    memorias = buscar_memorias_fixas(personagem_dados.get("nome", ""))
-    if memorias:
-        prompt += f"[MEMÓRIAS FIXAS]\n" + "\n".join(memorias) + "\n\n"
-
-    historico = buscar_historico_recentemente(personagem_dados.get("nome", ""))
-    if historico:
-        prompt += f"[HISTÓRICO RECENTE]\n{historico}\n\n"
-
-    prompt += f"[MENSAGEM DO USUÁRIO]\n{user_input}\n"
-    return prompt
-
-# === Endpoint principal ===
-@app.post("/chat/")
-async def chat_with_ai(request: ChatRequest):
-    personagem_dados = buscar_dados_personagem(request.personagem)
-    if not personagem_dados:
-        return JSONResponse(content={"erro": "Personagem não encontrado."}, status_code=404)
-
-    prompt = montar_prompt(personagem_dados, request.user_input)
-
-    headers = {
-        "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "model": "openrouter/openai/gpt-4",
-        "messages": [
-            {"role": "system", "content": prompt},
-            {"role": "user", "content": request.user_input}
-        ]
-    }
-    response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=data)
-
-    if response.status_code != 200:
-        print("Erro OpenRouter:", response.status_code, response.text)
-        return JSONResponse(content={"erro": "Falha na resposta da IA."}, status_code=500)
-
-    resposta = response.json()["choices"][0]["message"]["content"]
-
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(request.personagem)
-        agora = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        aba.append_row([agora, "user", request.user_input])
-        aba.append_row([agora, "assistant", resposta])
-    except Exception as e:
-        print("Erro ao salvar conversa:", e)
-
-    return {
-        "resposta": resposta,
-        "nivel": 0
-    }
-
-# === Endpoint para listar personagens visíveis ===
 @app.get("/personagens/")
 def listar_personagens():
     aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
