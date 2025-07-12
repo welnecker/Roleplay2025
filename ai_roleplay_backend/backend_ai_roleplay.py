@@ -179,8 +179,7 @@ def buscar_historico_recentemente(personagem):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         valores = aba.get_all_values()
-        return "
-".join(["{}: {}".format(l[1], l[2]) for l in valores[-10:] if len(l) >= 3]) for l in valores[-10:] if len(l) >= 3])
+        return "\n".join(["{}: {}".format(l[1], l[2]) for l in valores[-10:] if len(l) >= 3])
     except:
         return ""
 
@@ -189,36 +188,20 @@ def montar_prompt(personagem_dados: dict, user_input: str):
         "essencia_personagem", "tecnicas_atuacao", "tecnica_narracao", "tecnica_pensamento",
         "cenografia", "auto_definicao", "gatilhos_emocionais", "valores_conflitos"
     ]
-    prompt = f"Você está interpretando o personagem: {personagem_dados.get('nome', 'Desconhecido')}
-"
-    prompt += f"Idade: {personagem_dados.get('idade', 'não especificada')}
-"
-    prompt += f"Aparência: {personagem_dados.get('aparencia', '')}
-
-"
+    prompt = f"Você está interpretando o personagem: {personagem_dados.get('nome', 'Desconhecido')}\n"
+    prompt += f"Idade: {personagem_dados.get('idade', 'não especificada')}\n"
+    prompt += f"Aparência: {personagem_dados.get('aparencia', '')}\n\n"
     for campo in campos:
         conteudo = personagem_dados.get(campo, "")
         if conteudo:
-            prompt += f"[{campo.upper()}]
-{conteudo}
-
-"
+            prompt += f"[{campo.upper()}]\n{conteudo}\n\n"
     memorias = buscar_memorias_fixas(personagem_dados.get("nome", ""))
     if memorias:
-        prompt += f"[MEMÓRIAS FIXAS]
-" + "
-".join(memorias) + "
-
-"
+        prompt += f"[MEMÓRIAS FIXAS]\n" + "\n".join(memorias) + "\n\n"
     historico = buscar_historico_recentemente(personagem_dados.get("nome", ""))
     if historico:
-        prompt += f"[HISTÓRICO RECENTE]
-{historico}
-
-"
-    prompt += f"[MENSAGEM DO USUÁRIO]
-{user_input}
-"
+        prompt += f"[HISTÓRICO RECENTE]\n{historico}\n\n"
+    prompt += f"[MENSAGEM DO USUÁRIO]\n{user_input}\n"
     return prompt
 
 @app.get("/personagens/")
