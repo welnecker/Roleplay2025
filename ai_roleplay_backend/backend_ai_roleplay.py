@@ -57,13 +57,15 @@ async def chat_with_ai(request: ChatRequest):
     prompt = montar_prompt(personagem_dados, request.user_input)
 
     if request.plataforma == "openai":
-        resposta, _ = usar_openai(prompt)
+        resposta_raw, _ = usar_openai(prompt)
     elif request.plataforma == "openrouter":
-        resposta, _ = usar_openrouter(prompt, personagem_dados.get("prompt_base", ""))
+        resposta_raw, _ = usar_openrouter(prompt, personagem_dados.get("prompt_base", ""))
     elif request.plataforma == "local":
-        resposta, _ = usar_local_llm(prompt)
+        resposta_raw, _ = usar_local_llm(prompt)
     else:
         return JSONResponse(content={"erro": "Plataforma não suportada."}, status_code=400)
+
+    resposta = resposta_raw if isinstance(resposta_raw, str) else resposta_raw.get("resposta", "[Erro ao gerar resposta com IA]")
 
     if request.traduzir and request.plataforma == "openai":
         resposta = traduzir_texto(resposta)
@@ -119,10 +121,10 @@ def usar_openrouter(prompt, prompt_base):
         if "choices" in resposta and len(resposta["choices"]) > 0:
             return resposta["choices"][0]["message"]["content"], 0
         else:
-            return "[Resposta inválida ou incompleta do modelo Hermes 2 Pro]", 0
+            return {"resposta": "[Resposta inválida ou incompleta do modelo Hermes 2 Pro]"}, 0
     except Exception as e:
         print("Erro na resposta do OpenRouter:", e)
-        return "[Erro ao gerar resposta com Hermes 2 Pro]", 0
+        return {"resposta": "[Erro ao gerar resposta com Hermes 2 Pro]"}, 0
 
 
 def usar_local_llm(prompt):
