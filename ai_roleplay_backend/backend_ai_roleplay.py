@@ -180,7 +180,7 @@ def buscar_historico_recentemente(personagem):
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
         valores = aba.get_all_values()
         return "
-".join(["{}: {}".format(l[1], l[2]) for l in valores[-10:] if len(l) >= 3])
+".join(["{}: {}".format(l[1], l[2]) for l in valores[-10:] if len(l) >= 3]) for l in valores[-10:] if len(l) >= 3])
     except:
         return ""
 
