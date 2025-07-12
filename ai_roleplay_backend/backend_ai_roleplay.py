@@ -65,7 +65,7 @@ async def chat_with_ai(request: ChatRequest):
     else:
         return JSONResponse(content={"erro": "Plataforma não suportada."}, status_code=400)
 
-    if request.traduzir:
+    if request.traduzir and request.plataforma == "openai":
         resposta = traduzir_texto(resposta)
 
     try:
@@ -83,6 +83,7 @@ async def chat_with_ai(request: ChatRequest):
         "nivel": 0
     }
 
+
 def usar_openai(prompt):
     from openai import OpenAI
     openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -94,6 +95,7 @@ def usar_openai(prompt):
         ]
     )
     return response.choices[0].message.content.strip(), 0
+
 
 def usar_openrouter(prompt, prompt_base):
     headers = {
@@ -122,8 +124,10 @@ def usar_openrouter(prompt, prompt_base):
         print("Erro na resposta do OpenRouter:", e)
         return "[Erro ao gerar resposta com Hermes 2 Pro]", 0
 
+
 def usar_local_llm(prompt):
     return f"[Local LLM] Resposta para: {prompt}", 0
+
 
 def traduzir_texto(texto):
     try:
@@ -140,6 +144,7 @@ def traduzir_texto(texto):
     except Exception as e:
         return texto + f"\n\n(Erro na tradução: {str(e)})"
 
+
 def adicionar_memoria_chroma(personagem, conteudo):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/add"
     dados = {
@@ -149,6 +154,7 @@ def adicionar_memoria_chroma(personagem, conteudo):
     }
     requests.post(url, json=dados)
 
+
 def buscar_dados_personagem(nome):
     sheet = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
     dados = sheet.get_all_records()
@@ -157,12 +163,14 @@ def buscar_dados_personagem(nome):
             return linha
     return {}
 
+
 def buscar_memorias_fixas(personagem):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("memorias_fixas")
         return [l["conteudo"] for l in aba.get_all_records() if l["personagem"].lower() == personagem.lower()]
     except:
         return []
+
 
 def buscar_memorias_chroma(personagem, texto):
     url = f"{CHROMA_BASE_URL}/api/v2/tenants/janio/databases/minha_base/collections/memorias/query"
@@ -176,6 +184,7 @@ def buscar_memorias_chroma(personagem, texto):
         return [x for grupo in resp.json().get("documents", []) for x in grupo]
     return []
 
+
 def buscar_historico_recentemente(personagem):
     try:
         aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet(personagem)
@@ -183,6 +192,7 @@ def buscar_historico_recentemente(personagem):
         return "\n".join(["{}: {}".format(l[1], l[2]) for l in valores[-10:] if len(l) >= 3])
     except:
         return ""
+
 
 def montar_prompt(personagem_dados: dict, user_input: str):
     campos = [
@@ -205,6 +215,7 @@ def montar_prompt(personagem_dados: dict, user_input: str):
     prompt += f"[MENSAGEM DO USUÁRIO]\n{user_input}\n"
     return prompt
 
+
 @app.get("/personagens/")
 def listar_personagens():
     aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("personagens")
@@ -215,6 +226,7 @@ def listar_personagens():
             personagens.append(linha)
     return personagens
 
+
 @app.get("/mensagens/")
 def obter_mensagens(personagem: str):
     try:
@@ -223,10 +235,12 @@ def obter_mensagens(personagem: str):
     except Exception as e:
         return JSONResponse(content={"erro": str(e)}, status_code=500)
 
+
 @app.get("/intro/")
 def obter_intro(personagem: str):
     dados = buscar_dados_personagem(personagem)
     return {"intro": dados.get("memoria_inicial", "")}
+
 
 @app.post("/memorias_clear/")
 def apagar_memorias(payload: PersonagemPayload):
