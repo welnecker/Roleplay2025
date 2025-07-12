@@ -8,6 +8,7 @@ import os
 import requests
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
+from urllib.parse import quote
 
 # === Google Sheets Setup ===
 scope = [
@@ -224,7 +225,7 @@ def listar_personagens():
     personagens = []
     for linha in aba.get_all_records():
         if linha.get("usar", "").strip().lower() == "sim":
-            linha["foto"] = f"https://raw.githubusercontent.com/welnecker/roleplay_imagens/main/{linha['nome']}.jpg"
+            linha["foto"] = f"https://raw.githubusercontent.com/welnecker/roleplay_imagens/main/{quote(linha['nome'].strip())}.jpg"
             personagens.append(linha)
     return personagens
 
