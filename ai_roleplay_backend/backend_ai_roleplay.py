@@ -113,6 +113,7 @@ def usar_openrouter(prompt, prompt_base):
         response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
         response.raise_for_status()
         resposta = response.json()
+        print("Resposta bruta do OpenRouter:", resposta)
         if "choices" in resposta and len(resposta["choices"]) > 0:
             return resposta["choices"][0]["message"]["content"], 0
         else:
