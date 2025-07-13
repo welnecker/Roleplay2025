@@ -91,7 +91,10 @@ async def chat_with_ai(request: ChatRequest):
 def montar_prompt(dados_personagem, user_input, paragrafos):
     estilo = dados_personagem.get("estilo fala", "sensível e envolvente")
     nome = dados_personagem.get("nome", "Personagem")
+    contexto = dados_personagem.get("contexto", "")
+    cena = f"Cenário: {contexto}\n" if contexto else ""
     return (
+        f"{cena}"
         f"{nome} está vivendo um momento com o usuário.\n"
         f"Estilo: {estilo}.\n"
         f"Responda com no máximo {paragrafos} parágrafos curtos.\n"
@@ -176,6 +179,7 @@ def calcular_nivel_personalizado(resposta, personagem):
     except Exception as e:
         print("Erro ao calcular nível personalizado:", e)
         return 1
+
 
 
 
