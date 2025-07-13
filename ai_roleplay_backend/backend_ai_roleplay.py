@@ -9,7 +9,6 @@ import requests
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 from urllib.parse import quote
-import random
 
 # === Google Sheets Setup ===
 scope = [
@@ -42,7 +41,6 @@ class ChatRequest(BaseModel):
     estado: str = "Neutro"
     plataforma: str = "openai"
     traduzir: bool = True
-    paragrafos: int = 4
 
 class PersonagemPayload(BaseModel):
     personagem: str
@@ -57,14 +55,14 @@ async def chat_with_ai(request: ChatRequest):
     if memoria_inicial:
         adicionar_memoria_chroma(request.personagem, memoria_inicial)
 
-    prompt = montar_prompt(personagem_dados, request.user_input, request.paragrafos)
+    prompt = montar_prompt(personagem_dados, request.user_input)
 
     if request.plataforma == "openai":
-        resposta_raw, nivel = usar_openai(prompt)
+        resposta_raw, _ = usar_openai(prompt)
     elif request.plataforma == "openrouter":
-        resposta_raw, nivel = usar_openrouter(prompt, personagem_dados.get("prompt_base", ""), request.personagem)
+        resposta_raw, _ = usar_openrouter(prompt, personagem_dados.get("prompt_base", ""))
     elif request.plataforma == "local":
-        resposta_raw, nivel = usar_local_llm(prompt)
+        resposta_raw, _ = usar_local_llm(prompt)
     else:
         return JSONResponse(content={"erro": "Plataforma não suportada."}, status_code=400)
 
@@ -85,21 +83,9 @@ async def chat_with_ai(request: ChatRequest):
 
     return {
         "resposta": resposta,
-        "nivel": nivel
+        "nivel": 0
     }
 
-def montar_prompt(dados_personagem, user_input, paragrafos):
-    estilo = dados_personagem.get("estilo fala", "sensível e envolvente")
-    nome = dados_personagem.get("nome", "Personagem")
-    contexto = dados_personagem.get("contexto", "")
-    cena = f"Cenário: {contexto}\n" if contexto else ""
-    return (
-        f"{cena}"
-        f"{nome} está vivendo um momento com o usuário.\n"
-        f"Estilo: {estilo}.\n"
-        f"Responda com no máximo {paragrafos} parágrafos curtos.\n"
-        f"Situação: {user_input}"
-    )
 
 def usar_openai(prompt):
     from openai import OpenAI
@@ -111,26 +97,20 @@ def usar_openai(prompt):
             {"role": "user", "content": prompt}
         ]
     )
-    texto = response.choices[0].message.content.strip()
-    nivel = calcular_nivel_personalizado(texto, prompt.splitlines()[0])
-    return texto, nivel
+    return response.choices[0].message.content.strip(), 0
 
-def usar_openrouter(prompt, prompt_base, personagem):
+
+def usar_openrouter(prompt, prompt_base):
     headers = {
         "Authorization": f"Bearer {os.environ.get('OPENROUTER_API_KEY')}",
         "Content-Type": "application/json",
         "HTTP-Referer": "https://amaprojeto.site",
         "X-Title": "Roleplay2025"
     }
-    prompt_base_padrao = (
-        "Você é uma personagem intensa e sensível. Fale com naturalidade, usando gestos, olhares, toques e pensamentos. "
-        "Evite descrições excessivas ou muito genéricas. Use suspense, desejo, silêncios e expressões não-verbais. "
-        "Fale como se estivesse ali, vivendo o momento. Responda em no máximo 4 parágrafos. Crie desejo, não textos."
-    )
     payload = {
         "model": "nousresearch/hermes-2-pro-llama-3-8b",
         "messages": [
-            {"role": "system", "content": prompt_base or prompt_base_padrao},
+            {"role": "system", "content": prompt_base or "Você é uma personagem fictícia com memória."},
             {"role": "user", "content": prompt}
         ]
     }
@@ -140,49 +120,16 @@ def usar_openrouter(prompt, prompt_base, personagem):
         resposta = response.json()
         print("Resposta bruta do OpenRouter:", resposta)
         if "choices" in resposta and len(resposta["choices"]) > 0:
-            texto = resposta["choices"][0]["message"]["content"]
-            nivel = calcular_nivel_personalizado(texto, personagem)
-            return texto, nivel
+            return resposta["choices"][0]["message"]["content"], 0
         else:
             return {"resposta": "[Resposta inválida ou incompleta do modelo Hermes 2 Pro]"}, 0
     except Exception as e:
         print("Erro na resposta do OpenRouter:", e)
         return {"resposta": "[Erro ao gerar resposta com Hermes 2 Pro]"}, 0
 
+
 def usar_local_llm(prompt):
-    resposta = f"[Local LLM] Resposta para: {prompt}"
-    return resposta, calcular_nivel(resposta)
-
-def calcular_nivel(resposta):
-    resposta = resposta.lower()
-    if any(palavra in resposta for palavra in ["tocar", "beijar", "abraço", "pele", "intenso", "sussurra", "excitado", "excitação"]):
-        return 4 + random.randint(0, 1)  # 4 ou 5
-    elif any(palavra in resposta for palavra in ["olhos", "suspiro", "emoção", "sentimento", "carinho", "paixão"]):
-        return 2 + random.randint(0, 2)  # 2 a 4
-    else:
-        return 1 + random.randint(0, 1)  # 1 ou 2
-
-def calcular_nivel_personalizado(resposta, personagem):
-    try:
-        aba = gsheets_client.open_by_key(PLANILHA_ID).worksheet("gatilhos_nivel")
-        dados = aba.get_all_records()
-        resposta = resposta.lower()
-        gatilhos_personagem = [linha for linha in dados if linha["personagem"].lower() == personagem.lower()]
-        for nivel in sorted(set([int(l["nivel"]) for l in gatilhos_personagem]), reverse=True):
-            palavras = []
-            for linha in gatilhos_personagem:
-                if int(linha["nivel"]) == nivel:
-                    palavras += [p.strip() for p in linha["palavras_chave"].split(",")]
-            if any(p in resposta for p in palavras):
-                return nivel
-        return 1
-    except Exception as e:
-        print("Erro ao calcular nível personalizado:", e)
-        return 1
-
-
-
-
+    return f"[Local LLM] Resposta para: {prompt}", 0
 
 
 def traduzir_texto(texto):
