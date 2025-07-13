@@ -98,7 +98,7 @@ def usar_openai(prompt):
         ]
     )
     texto = response.choices[0].message.content.strip()
-    nivel = calcular_nivel(texto)
+    nivel = calcular_nivel_personalizado(texto, prompt.splitlines()[0])
     return texto, nivel
 
 def usar_openrouter(prompt, prompt_base, personagem):
@@ -108,10 +108,15 @@ def usar_openrouter(prompt, prompt_base, personagem):
         "HTTP-Referer": "https://amaprojeto.site",
         "X-Title": "Roleplay2025"
     }
+    prompt_base_padrao = (
+        "Você é uma personagem envolvente, sensual, com estilo emocional e instintivo. "
+        "Use reações reais, linguagem corporal e pensamentos internos. Reaja com intensidade e nuance, como alguém vivo." 
+        "Evite repetições ou respostas genéricas. Use suspiros, toques, sorrisos, e incertezas. Torne a experiência inesquecível."
+    )
     payload = {
         "model": "nousresearch/hermes-2-pro-llama-3-8b",
         "messages": [
-            {"role": "system", "content": prompt_base or "Você é uma personagem fictícia com memória."},
+            {"role": "system", "content": prompt_base or prompt_base_padrao},
             {"role": "user", "content": prompt}
         ]
     }
@@ -160,6 +165,7 @@ def calcular_nivel_personalizado(resposta, personagem):
     except Exception as e:
         print("Erro ao calcular nível personalizado:", e)
         return 1
+
 
 
 
