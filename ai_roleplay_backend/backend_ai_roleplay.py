@@ -42,6 +42,7 @@ class ChatRequest(BaseModel):
     estado: str = "Neutro"
     plataforma: str = "openai"
     traduzir: bool = True
+    paragrafos: int = 4
 
 class PersonagemPayload(BaseModel):
     personagem: str
@@ -56,7 +57,7 @@ async def chat_with_ai(request: ChatRequest):
     if memoria_inicial:
         adicionar_memoria_chroma(request.personagem, memoria_inicial)
 
-    prompt = montar_prompt(personagem_dados, request.user_input)
+    prompt = montar_prompt(personagem_dados, request.user_input, request.paragrafos)
 
     if request.plataforma == "openai":
         resposta_raw, nivel = usar_openai(prompt)
@@ -87,6 +88,16 @@ async def chat_with_ai(request: ChatRequest):
         "nivel": nivel
     }
 
+def montar_prompt(dados_personagem, user_input, paragrafos):
+    estilo = dados_personagem.get("estilo fala", "sensível e envolvente")
+    nome = dados_personagem.get("nome", "Personagem")
+    return (
+        f"{nome} está vivendo um momento com o usuário.\n"
+        f"Estilo: {estilo}.\n"
+        f"Responda com no máximo {paragrafos} parágrafos curtos.\n"
+        f"Situação: {user_input}"
+    )
+
 def usar_openai(prompt):
     from openai import OpenAI
     openai_client = OpenAI(api_key=os.environ.get("OPENAI_API_KEY"))
@@ -109,9 +120,9 @@ def usar_openrouter(prompt, prompt_base, personagem):
         "X-Title": "Roleplay2025"
     }
     prompt_base_padrao = (
-        "Você é uma personagem envolvente, sensual, com estilo emocional e instintivo. "
-        "Use reações reais, linguagem corporal e pensamentos internos. Reaja com intensidade e nuance, como alguém vivo." 
-        "Evite repetições ou respostas genéricas. Use suspiros, toques, sorrisos, e incertezas. Torne a experiência inesquecível."
+        "Você é uma personagem intensa e sensível. Fale com naturalidade, usando gestos, olhares, toques e pensamentos. "
+        "Evite descrições excessivas ou muito genéricas. Use suspense, desejo, silêncios e expressões não-verbais. "
+        "Fale como se estivesse ali, vivendo o momento. Responda em no máximo 4 parágrafos. Crie desejo, não textos."
     )
     payload = {
         "model": "nousresearch/hermes-2-pro-llama-3-8b",
@@ -165,6 +176,7 @@ def calcular_nivel_personalizado(resposta, personagem):
     except Exception as e:
         print("Erro ao calcular nível personalizado:", e)
         return 1
+
 
 
 
